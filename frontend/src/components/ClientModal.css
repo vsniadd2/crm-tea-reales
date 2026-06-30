@@ -61,24 +61,69 @@
 }
 
 .close-modal {
+    position: relative;
+    flex-shrink: 0;
     background: none;
     border: none;
-    font-size: 1.8rem;
     color: var(--muted);
     cursor: pointer;
     width: 36px;
     height: 36px;
+    padding: 0;
+    font-size: 0;
+    line-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.close-modal::before,
+.close-modal::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+    transition: transform 0.35s cubic-bezier(0.34, 1.15, 0.64, 1);
+}
+
+.close-modal::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.close-modal::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .close-modal:hover {
     background: #eef2f7;
     color: var(--text);
-    transform: rotate(90deg);
+}
+
+.close-modal:hover::before {
+    transform: translate(-50%, -50%) rotate(135deg);
+}
+
+.close-modal:hover::after {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.close-modal:active {
+    background: #e2e8f0;
+    transform: scale(0.92);
+    transition-duration: 0.12s;
+}
+
+.close-modal:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--primary-focus);
 }
 
 .form-row {
@@ -383,7 +428,11 @@
     .close-modal {
         width: 32px;
         height: 32px;
-        font-size: 1.5rem;
+    }
+
+    .close-modal::before,
+    .close-modal::after {
+        width: 14px;
     }
 
     .input-group input {

@@ -4,6 +4,7 @@ import { clientService } from '../services/clientService'
 import { useNotification } from './NotificationProvider'
 import { useDataRefresh } from '../contexts/DataRefreshContext'
 import { useAuth } from '../contexts/AuthContext'
+import { usePointContext } from '../contexts/PointContext'
 import { withAuthRetry } from '../utils/withAuthRetry'
 import ProductSelector from './ProductSelector'
 import PaymentMethodModal from './PaymentMethodModal'
@@ -31,6 +32,7 @@ const ClientModal = ({ onClose }) => {
   const { showNotification } = useNotification()
   const { refreshAll } = useDataRefresh()
   const { refreshAccessToken, ensureValidToken } = useAuth()
+  const { activePointId } = usePointContext()
 
   useEffect(() => {
     const handleEscape = (e) => {
@@ -86,7 +88,8 @@ const ClientModal = ({ onClose }) => {
           orderData.items,
           paymentMethod,
           orderData.employeeDiscount || 0,
-          mixedParts
+          mixedParts,
+          activePointId
         )
         if (purchaseResult.success) {
           showNotification('Покупка успешно добавлена!', 'success')
@@ -118,7 +121,7 @@ const ClientModal = ({ onClose }) => {
           clientData.cashPart = mixedParts.cashPart
           clientData.cardPart = mixedParts.cardPart
         }
-        const result = await addClient(clientData)
+        const result = await addClient(clientData, activePointId)
 
         if (result.success) {
           showNotification('Клиент успешно добавлен!', 'success')

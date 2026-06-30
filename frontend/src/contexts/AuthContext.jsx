@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
   const [accessToken, setAccessToken] = useState(getAccessToken)
   const [refreshToken, setRefreshToken] = useState(getRefreshToken)
   const [loading, setLoading] = useState(true)
-  const [showHelloAfterLogin, setShowHelloAfterLogin] = useState(false)
 
   const logout = useCallback(() => {
     setAccessToken(null)
@@ -129,7 +128,6 @@ export const AuthProvider = ({ children }) => {
       setAccessToken(data.accessToken)
       setRefreshToken(data.refreshToken)
       setUser(data.user)
-      setShowHelloAfterLogin(true)
       
       saveAuthData(
         {
@@ -146,8 +144,6 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const clearShowHello = () => setShowHelloAfterLogin(false)
-
   const value = {
     user,
     accessToken,
@@ -156,9 +152,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshAccessToken,
     ensureValidToken,
-    loading,
-    showHelloAfterLogin,
-    clearShowHello
+    loading
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

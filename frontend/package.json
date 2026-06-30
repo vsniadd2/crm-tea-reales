@@ -1,8 +1,8 @@
 {
-  "name": "coffee-crm-frontend",
+  "name": "tea-room-crm-frontend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Coffee Life Roasters CRM Frontend",
+  "description": "Tea CRM — фронтенд",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,7 +11,7 @@
   },
   "keywords": [
     "crm",
-    "coffee",
+    "tea",
     "frontend",
     "react"
   ],

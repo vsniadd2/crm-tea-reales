@@ -1,6 +1,6 @@
-# crm-tea
+# Tea CRM
 
-Копия проекта realese-coffee для отдельного tea-CRM.
+CRM для Tea — учёт клиентов, заказов и аналитика.
 
 ## Локально
 
@@ -14,9 +14,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-## Сервер (93.125.82.249)
-
-Инструкция: **[DEPLOY-SERVER.md](./DEPLOY-SERVER.md)**
+## Сервер
 
 ```bash
 cp .env.example .env

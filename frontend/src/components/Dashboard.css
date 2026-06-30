@@ -13,12 +13,6 @@
     flex-direction: column;
     flex: 1;
     min-width: 0;
-    transition: opacity 0.5s ease;
-}
-
-/* На время анимации «Hello» передний план полупрозрачный — надпись видна */
-.main-screen-content.hello-animation-active {
-    opacity: 0.35;
 }
 
 .main-content {

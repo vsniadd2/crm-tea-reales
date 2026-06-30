@@ -1,23 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { usePointContext } from '../contexts/PointContext'
+import { getUserBadgeLabel, getUserTitle } from '../utils/userDisplay'
+import { TEA_ICON_SRC } from '../config/branding'
 import './Header.css'
 
-const getPointDisplayName = (user) => {
-  if (!user?.username) return ''
-  const u = user.username.toLowerCase()
-  if (u === 'chervenskiy') return 'Червенский'
-  if (u === 'valeryanova') return 'Валерьянова'
-  if (u === 'admin') return 'АЧервенский'
-  return user.pointName || user.username
-}
-
-const Header = ({ onAddClient, onSelectClient, currentPage, onNavigate }) => {
+const Header = ({ onAddClient, currentPage, onNavigate }) => {
   const { logout, user } = useAuth()
+  const { points, activePointId, activePointName, canSelectPoint, setActivePointId } = usePointContext()
   const isAdmin = user?.role === 'admin'
   const [menuOpen, setMenuOpen] = useState(false)
   const [pointMenuOpen, setPointMenuOpen] = useState(false)
   const pointMenuRef = useRef(null)
-  const pointLabel = getPointDisplayName(user)
+  const badgeLabel = getUserBadgeLabel(user)
+  const buttonTitle = getUserTitle(user, activePointName)
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
@@ -50,16 +46,25 @@ const Header = ({ onAddClient, onSelectClient, currentPage, onNavigate }) => {
     closeMenu()
   }
 
+  const handlePointSelect = (pointId) => {
+    setActivePointId(pointId)
+    setPointMenuOpen(false)
+  }
+
+  const handleBadgeClick = () => {
+    setPointMenuOpen((v) => !v)
+  }
+
   return (
     <header className={`header ${menuOpen ? 'menu-open' : ''}`}>
       <div className="header-left">
-        <div 
+        <div
           className="logo"
           onClick={() => onNavigate?.('new-client')}
           style={{ cursor: 'pointer' }}
         >
-          <img src="/img/coffee-svgrepo-com.svg" alt="Coffee" className="coffee-icon" />
-          <h1>Coffee Life Roasters CRM</h1>
+          <img src={TEA_ICON_SRC} alt="Tea" className="tea-icon" />
+          <h1>Tea CRM</h1>
         </div>
       </div>
       <div className="header-right">
@@ -103,25 +108,48 @@ const Header = ({ onAddClient, onSelectClient, currentPage, onNavigate }) => {
             </button>
           )}
         </nav>
-        {pointLabel && (
-          <div className="header-point-wrap" ref={pointMenuRef}>
-            <button
-              type="button"
-              className="header-point-btn"
-              onClick={() => setPointMenuOpen((v) => !v)}
-              aria-expanded={pointMenuOpen}
-              aria-haspopup="true"
-              title="Текущая точка"
-            >
-              {pointLabel}
-            </button>
-            {pointMenuOpen && (
-              <div className="header-point-dropdown">
-                <button type="button" className="header-point-dropdown-item" onClick={handleLogout}>
-                  Выйти
-                </button>
-              </div>
-            )}
+        {badgeLabel && (
+          <div className="header-user-actions">
+            <div className="header-point-wrap" ref={pointMenuRef}>
+              <button
+                type="button"
+                className={`header-point-btn${canSelectPoint ? ' header-point-btn--selectable' : ''}`}
+                onClick={handleBadgeClick}
+                aria-expanded={pointMenuOpen}
+                aria-haspopup="true"
+                title={buttonTitle}
+              >
+                {badgeLabel}
+              </button>
+              {pointMenuOpen && (
+                <div className="header-point-dropdown">
+                  {canSelectPoint && points.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`header-point-dropdown-item header-point-option${activePointId === p.id ? ' active' : ''}`}
+                      onClick={() => handlePointSelect(p.id)}
+                    >
+                      {p.name}
+                      {activePointId === p.id && <span className="header-point-check" aria-hidden="true">✓</span>}
+                    </button>
+                  ))}
+                  {!canSelectPoint && activePointName && (
+                    <div className="header-point-dropdown-label">Точка: {activePointName}</div>
+                  )}
+                  {canSelectPoint && points.length > 0 && (
+                    <div className="header-point-dropdown-divider" role="separator" />
+                  )}
+                  <button
+                    type="button"
+                    className="header-point-dropdown-item header-point-logout"
+                    onClick={handleLogout}
+                  >
+                    Выйти
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
         <button
@@ -183,7 +211,31 @@ const Header = ({ onAddClient, onSelectClient, currentPage, onNavigate }) => {
               Категории и товары
             </button>
           )}
+          {canSelectPoint && points.length > 0 && (
+            <div className="mobile-nav-point-select">
+              <span className="mobile-nav-point-select-label">Точка для заказов</span>
+              {points.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`mobile-nav-link mobile-nav-point-option${activePointId === p.id ? ' active' : ''}`}
+                  onClick={() => handlePointSelect(p.id)}
+                >
+                  {p.name}
+                  {activePointId === p.id ? ' ✓' : ''}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mobile-nav-bottom">
+            {badgeLabel && (
+              <div className="mobile-nav-point" role="status">
+                <span className="mobile-nav-point-badge">{badgeLabel}</span>
+                {activePointName && (
+                  <span className="mobile-nav-point-label">{activePointName}</span>
+                )}
+              </div>
+            )}
             <button
               type="button"
               className="mobile-nav-link mobile-nav-logout"
@@ -191,11 +243,6 @@ const Header = ({ onAddClient, onSelectClient, currentPage, onNavigate }) => {
             >
               Выйти
             </button>
-            {pointLabel && (
-              <div className="mobile-nav-point" role="status">
-                <span className="mobile-nav-point-label">Точка: {pointLabel}</span>
-              </div>
-            )}
           </div>
         </div>
       </nav>

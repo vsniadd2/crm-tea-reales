@@ -4,7 +4,7 @@ const getApiUrl = () => {
     const port = window.location.port;
     
     // Локальная разработка через vite dev server
-    // Vite proxy настроен на /api -> localhost:3000
+    // Vite proxy: /api -> localhost:3001 (backend в Docker)
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       // Используем proxy через vite (работает и для dev и для production через nginx)
       return '/api';

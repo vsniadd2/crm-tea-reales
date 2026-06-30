@@ -8,9 +8,10 @@ import { formatMinskDateTime } from '../utils/dateTime'
 import { normalizeMiddleNameForDisplay, normalizeClientIdForDisplay } from '../utils/clientDisplay'
 import EditClientModal from './EditClientModal'
 import LoadingIndicator from './LoadingIndicator'
+import { TEA_ICON_SRC } from '../config/branding'
 import './ClientList.css'
 
-const ClientList = ({ onSelectClient }) => {
+const ClientList = () => {
   const { user, refreshAccessToken } = useAuth()
   const isAdmin = user?.role === 'admin'
   // Загружаем сохраненный поисковый запрос из localStorage
@@ -364,7 +365,7 @@ const ClientList = ({ onSelectClient }) => {
       </div>
       {clients.length === 0 ? (
         <div className="empty-state">
-          <img src="/img/coffee-svgrepo-com.svg" alt="Coffee" className="empty-icon" />
+          <img src={TEA_ICON_SRC} alt="Tea" className="empty-icon" />
           <h3>Пока нет клиентов</h3>
           <p>Добавьте первого клиента, нажав кнопку "Новый клиент"</p>
         </div>
@@ -396,13 +397,12 @@ const ClientList = ({ onSelectClient }) => {
                 return (
                   <tr
                     key={client.id}
-                    className={onSelectClient ? 'clickable-row' : undefined}
-                    onClick={() => onSelectClient?.(client)}
-                    role={onSelectClient ? 'button' : undefined}
-                    tabIndex={onSelectClient ? 0 : undefined}
+                    className="clickable-row"
+                    onClick={() => setEditClient(client)}
+                    role="button"
+                    tabIndex={0}
                     onKeyDown={(e) => {
-                      if (!onSelectClient) return
-                      if (e.key === 'Enter' || e.key === ' ') onSelectClient(client)
+                      if (e.key === 'Enter' || e.key === ' ') setEditClient(client)
                     }}
                   >
                     <td className="name" data-label="Имя">

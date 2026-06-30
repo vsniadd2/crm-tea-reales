@@ -78,7 +78,7 @@ async function seed() {
   const drinksCatId = await upsertCategory({
     name: 'Напитки',
     color: '#3b82f6',
-    icon: '☕',
+    icon: '🍵',
     displayOrder: 10,
     trackCharts: true
   });
@@ -97,27 +97,27 @@ async function seed() {
     trackCharts: false
   });
 
-  const espressoSubId = await upsertSubcategory({ categoryId: drinksCatId, name: 'Эспрессо', displayOrder: 10 });
-  const milkCoffeeSubId = await upsertSubcategory({ categoryId: drinksCatId, name: 'Кофе с молоком', displayOrder: 20 });
-  const teaSubId = await upsertSubcategory({ categoryId: drinksCatId, name: 'Чай', displayOrder: 30 });
+  const hotTeaSubId = await upsertSubcategory({ categoryId: drinksCatId, name: 'Горячий чай', displayOrder: 10 });
+  const icedTeaSubId = await upsertSubcategory({ categoryId: drinksCatId, name: 'Холодный чай', displayOrder: 20 });
+  const teaAddonsSubId = await upsertSubcategory({ categoryId: drinksCatId, name: 'Чай с добавками', displayOrder: 30 });
 
   const cakesSubId = await upsertSubcategory({ categoryId: dessertsCatId, name: 'Десерты', displayOrder: 10 });
 
-  const beansSubId = await upsertSubcategory({ categoryId: retailCatId, name: 'Кофе в зернах', displayOrder: 10 });
+  const packagedTeaSubId = await upsertSubcategory({ categoryId: retailCatId, name: 'Чай фасованный', displayOrder: 10 });
   const merchSubId = await upsertSubcategory({ categoryId: retailCatId, name: 'Мерч', displayOrder: 20 });
 
-  await upsertProduct({ subcategoryId: espressoSubId, name: 'Эспрессо', price: 4.0, displayOrder: 10, tags: ['кофе'] });
-  await upsertProduct({ subcategoryId: espressoSubId, name: 'Американо', price: 4.5, displayOrder: 20, tags: ['кофе'] });
-  await upsertProduct({ subcategoryId: milkCoffeeSubId, name: 'Капучино', price: 5.5, displayOrder: 10, tags: ['кофе'] });
-  await upsertProduct({ subcategoryId: milkCoffeeSubId, name: 'Латте', price: 6.0, displayOrder: 20, tags: ['кофе'] });
-  await upsertProduct({ subcategoryId: teaSubId, name: 'Чай чёрный', price: 3.5, displayOrder: 10, tags: ['чай'] });
-  await upsertProduct({ subcategoryId: teaSubId, name: 'Чай зелёный', price: 3.5, displayOrder: 20, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: hotTeaSubId, name: 'Чай чёрный', price: 3.5, displayOrder: 10, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: hotTeaSubId, name: 'Чай зелёный', price: 3.5, displayOrder: 20, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: icedTeaSubId, name: 'Айс-ти лимонный', price: 4.5, displayOrder: 10, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: icedTeaSubId, name: 'Айс-ти персиковый', price: 4.5, displayOrder: 20, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: teaAddonsSubId, name: 'Чай с мёдом', price: 4.0, displayOrder: 10, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: teaAddonsSubId, name: 'Чай с имбирём', price: 4.5, displayOrder: 20, tags: ['чай'] });
 
   await upsertProduct({ subcategoryId: cakesSubId, name: 'Чизкейк', price: 8.0, displayOrder: 10, tags: ['десерт'] });
   await upsertProduct({ subcategoryId: cakesSubId, name: 'Брауни', price: 6.5, displayOrder: 20, tags: ['десерт'] });
 
-  await upsertProduct({ subcategoryId: beansSubId, name: 'Кофе в зернах 250 г', price: 25.0, displayOrder: 10, tags: ['зерно'] });
-  await upsertProduct({ subcategoryId: beansSubId, name: 'Кофе в зернах 1 кг', price: 80.0, displayOrder: 20, tags: ['зерно'] });
+  await upsertProduct({ subcategoryId: packagedTeaSubId, name: 'Чай листовой 100 г', price: 18.0, displayOrder: 10, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: packagedTeaSubId, name: 'Чай листовой 250 г', price: 35.0, displayOrder: 20, tags: ['чай'] });
 
   await upsertProduct({ subcategoryId: merchSubId, name: 'Термокружка', price: 35.0, displayOrder: 10, tags: ['мерч'] });
 

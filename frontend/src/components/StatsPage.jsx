@@ -16,6 +16,7 @@ import './StatsPage.css'
 const StatsPage = () => {
   const { refreshAccessToken, ensureValidToken, user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const canFilterByPoint = isAdmin || user?.accessAllPoints
   const { showNotification } = useNotification()
   const [loading, setLoading] = useState(true) // только для первой загрузки
   const [chartLoading, setChartLoading] = useState(false) // фоновое обновление без блокировки
@@ -114,13 +115,13 @@ const StatsPage = () => {
     }
   }
 
-  // Для "Общий" всегда показываем со всех точек; для остальных — с учётом выбора точки
-  const pointIdParam = isAdmin
+  // Для admin/855 — фильтр на странице; для сотрудника — всегда своя точка
+  const pointIdParam = canFilterByPoint
     ? (productViewType === 'all' ? null : (selectedPointId === '' ? null : selectedPointId))
-    : null
+    : (user?.pointId ?? null)
 
   const loadPoints = async () => {
-    if (!isAdmin) return
+    if (!canFilterByPoint) return
     await ensureValidToken()
     try {
       const list = await pointsService.getPoints()
@@ -288,13 +289,13 @@ const StatsPage = () => {
 
   useEffect(() => {
     loadCategories()
-    if (isAdmin) {
+    if (canFilterByPoint) {
       loadPoints()
     } else if (productViewType === 'all') {
       setProductViewType('day')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin])
+  }, [canFilterByPoint])
 
   useEffect(() => {
     if (productViewType === 'category' && selectedCategoryId) {
@@ -479,7 +480,7 @@ const StatsPage = () => {
               />
             </label>
           )}
-          {isAdmin && points.length > 0 && productViewType !== 'all' && (
+          {canFilterByPoint && points.length > 0 && productViewType !== 'all' && (
             <label className="stats-point-select-wrap">
               <span className="stats-point-label">Точка:</span>
               <select
@@ -514,7 +515,7 @@ const StatsPage = () => {
                   >
                     По дням
                   </button>
-                  {isAdmin && (
+                  {canFilterByPoint && (
                     <button
                       type="button"
                       onClick={() => {

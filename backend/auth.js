@@ -1,13 +1,14 @@
 const jwt = require('jsonwebtoken');
 
 // Секреты из backend/.env (см. .env.example). JWT_REFRESH_SECRET опционален — иначе берётся JWT_SECRET.
-const JWT_SECRET = process.env.JWT_SECRET || 'coffee_life_roasters_secret_key_2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'tea_crm_secret_key_2024';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_SECRET;
 
 // Генерация access токена (role: 'user' | 'admin', pointId для пользователей точки)
-const generateAccessToken = (userId, username, role = 'user', pointId = null) => {
+const generateAccessToken = (userId, username, role = 'user', pointId = null, accessAllPoints = false) => {
   const payload = { userId, username, role };
   if (pointId != null) payload.pointId = pointId;
+  if (accessAllPoints) payload.accessAllPoints = true;
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
 };
 

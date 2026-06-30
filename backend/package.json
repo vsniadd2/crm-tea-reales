@@ -1,7 +1,7 @@
 {
-  "name": "coffee-crm-backend",
+  "name": "tea-room-crm-backend",
   "version": "1.0.0",
-  "description": "Coffee Life Roasters CRM Backend",
+  "description": "Tea CRM — бэкенд",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,7 +10,7 @@
     "import-silver": "node scripts/import-silver-from-excel.js",
     "import-csv": "node scripts/import-csv-from-excel.js"
   },
-  "keywords": ["crm", "coffee", "backend"],
+  "keywords": ["crm", "tea", "backend"],
   "author": "",
   "license": "ISC",
   "dependencies": {

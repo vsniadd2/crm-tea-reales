@@ -14,6 +14,7 @@ import './PurchaseHistory.css'
 const PurchaseHistory = () => {
   const { refreshAccessToken, user } = useAuth()
   const isAdmin = user?.role === 'admin'
+  const canFilterByPoint = isAdmin || user?.accessAllPoints
   const { refreshKey, registerRefreshCallback } = useDataRefresh()
   const { showNotification } = useNotification()
   const [purchases, setPurchases] = useState([])
@@ -147,7 +148,9 @@ const PurchaseHistory = () => {
       }
       setError(null)
       try {
-        const pointIdParam = isAdmin && selectedPointId !== '' ? selectedPointId : null
+        const pointIdParam = canFilterByPoint
+          ? (selectedPointId !== '' ? selectedPointId : null)
+          : (user?.pointId ?? null)
         const data = await purchaseHistoryService.getPurchases({
           page,
           limit: 20,
@@ -168,7 +171,9 @@ const PurchaseHistory = () => {
         if (e?.message === 'UNAUTHORIZED') {
           const refreshed = await refreshAccessToken()
           if (refreshed) {
-            const pointIdParam = isAdmin && selectedPointId !== '' ? selectedPointId : null
+            const pointIdParam = canFilterByPoint
+          ? (selectedPointId !== '' ? selectedPointId : null)
+          : (user?.pointId ?? null)
             const data = await purchaseHistoryService.getPurchases({
               page,
               limit: 20,
@@ -217,7 +222,7 @@ const PurchaseHistory = () => {
         isUserTypingRef.current = false
       })
     }
-    }, [page, dateFrom, dateTo, debouncedSearchName, refreshAccessToken, searchName, isAdmin, selectedPointId])
+    }, [page, dateFrom, dateTo, debouncedSearchName, refreshAccessToken, searchName, canFilterByPoint, selectedPointId])
 
   useEffect(() => {
     loadPurchases()
@@ -302,7 +307,9 @@ const PurchaseHistory = () => {
     try {
       setLoadingStats(true)
       try {
-        const pointIdParam = isAdmin && selectedPointId !== '' ? selectedPointId : null
+        const pointIdParam = canFilterByPoint
+          ? (selectedPointId !== '' ? selectedPointId : null)
+          : (user?.pointId ?? null)
         const stats = await purchaseHistoryService.getPaymentStats(
           dateFrom || null,
           dateTo || null,
@@ -313,7 +320,9 @@ const PurchaseHistory = () => {
         if (e?.message === 'UNAUTHORIZED') {
           const refreshed = await refreshAccessToken()
           if (refreshed) {
-            const pointIdParam = isAdmin && selectedPointId !== '' ? selectedPointId : null
+            const pointIdParam = canFilterByPoint
+          ? (selectedPointId !== '' ? selectedPointId : null)
+          : (user?.pointId ?? null)
             const stats = await purchaseHistoryService.getPaymentStats(
               dateFrom || null,
               dateTo || null,
@@ -331,14 +340,14 @@ const PurchaseHistory = () => {
     } finally {
       setLoadingStats(false)
     }
-  }, [dateFrom, dateTo, refreshAccessToken, isAdmin, selectedPointId])
+  }, [dateFrom, dateTo, refreshAccessToken, canFilterByPoint, selectedPointId])
 
   useEffect(() => {
     loadPaymentStats()
   }, [loadPaymentStats])
 
   const loadPoints = useCallback(async () => {
-    if (!isAdmin) return
+    if (!canFilterByPoint) return
     try {
       const list = await pointsService.getPoints()
       setPoints(Array.isArray(list) ? list : [])
@@ -349,11 +358,11 @@ const PurchaseHistory = () => {
         setPoints(Array.isArray(list) ? list : [])
       }
     }
-  }, [isAdmin, refreshAccessToken])
+  }, [canFilterByPoint, refreshAccessToken])
 
   useEffect(() => {
-    if (isAdmin) loadPoints()
-  }, [isAdmin, loadPoints])
+    if (canFilterByPoint) loadPoints()
+  }, [canFilterByPoint, loadPoints])
 
   const handleClearFilters = () => {
     setDateFrom('')
@@ -534,7 +543,7 @@ const PurchaseHistory = () => {
           </div>
         )}
         <div className="purchase-history-filters">
-          {isAdmin && points.length > 0 && (
+          {canFilterByPoint && points.length > 0 && (
             <div className="filter-group">
               <label htmlFor="pointSelect">Точка:</label>
               <select

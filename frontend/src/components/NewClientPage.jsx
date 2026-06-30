@@ -4,6 +4,7 @@ import { clientService } from '../services/clientService'
 import { useNotification } from './NotificationProvider'
 import { useDataRefresh } from '../contexts/DataRefreshContext'
 import { useAuth } from '../contexts/AuthContext'
+import { usePointContext } from '../contexts/PointContext'
 import ProductSelector from './ProductSelector'
 import PaymentMethodModal from './PaymentMethodModal'
 import { normalizeMiddleNameForDisplay, normalizeClientIdForDisplay } from '../utils/clientDisplay'
@@ -18,6 +19,7 @@ import './NewClientPage.css'
 
 const NewClientPage = () => {
   const { refreshAccessToken, ensureValidToken } = useAuth()
+  const { activePointId } = usePointContext()
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -272,7 +274,7 @@ const NewClientPage = () => {
 
       if (orderData.type === 'anonymous') {
         try {
-          await clientService.createAnonymousPurchase(orderData.price, orderData.items, paymentMethod, orderData.employeeDiscount || 0, mixedParts)
+          await clientService.createAnonymousPurchase(orderData.price, orderData.items, paymentMethod, orderData.employeeDiscount || 0, mixedParts, activePointId)
           showNotification('Заказ создан!', 'success')
           refreshAll()
           setFormData({ firstName: '', lastName: '', middleName: '', clientId: '', price: '' })
@@ -287,7 +289,7 @@ const NewClientPage = () => {
             const refreshed = await refreshAccessToken()
             if (refreshed) {
               try {
-                await clientService.createAnonymousPurchase(orderData.price, orderData.items, paymentMethod, orderData.employeeDiscount || 0, mixedParts)
+                await clientService.createAnonymousPurchase(orderData.price, orderData.items, paymentMethod, orderData.employeeDiscount || 0, mixedParts, activePointId)
                 showNotification('Заказ создан!', 'success')
                 refreshAll()
                 setFormData({ firstName: '', lastName: '', middleName: '', clientId: '', price: '' })
@@ -309,7 +311,7 @@ const NewClientPage = () => {
         }
       } else if (orderData.type === 'existing') {
         try {
-          const purchaseResult = await addPurchase(orderData.clientId, orderData.price, orderData.items, paymentMethod, orderData.employeeDiscount || 0, mixedParts)
+          const purchaseResult = await addPurchase(orderData.clientId, orderData.price, orderData.items, paymentMethod, orderData.employeeDiscount || 0, mixedParts, activePointId)
           if (purchaseResult.success) {
             showNotification('Покупка успешно добавлена!', 'success')
             setTimeout(() => refreshAll(), 100)
@@ -345,7 +347,7 @@ const NewClientPage = () => {
           clientData.cashPart = mixedParts.cashPart
           clientData.cardPart = mixedParts.cardPart
         }
-        const result = await addClient(clientData)
+        const result = await addClient(clientData, activePointId)
 
         if (result.success) {
           showNotification('Клиент успешно добавлен!', 'success')

@@ -23,30 +23,39 @@
 }
 
 .login-brand {
-    text-align: center;
-    font-size: 48px;
-    line-height: 1.1;
-    margin-bottom: 16px;
-    letter-spacing: -1px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 12px;
+    margin-bottom: 20px;
+}
+
+.login-brand-mark {
+    align-items: center;
+    background: linear-gradient(145deg, #6fa85e 0%, #4d7a42 100%);
+    border-radius: 16px;
+    box-shadow: 0 6px 18px rgba(77, 122, 66, 0.22);
+    display: flex;
+    height: 56px;
+    justify-content: center;
+    width: 56px;
 }
 
 .login-brand-icon {
-    width: 48px;
-    height: 48px;
     display: block;
+    height: 30px;
     object-fit: contain;
-    filter: brightness(0);
-    opacity: 0.9;
+    width: 30px;
 }
 
-.login-brand-strong {
-    font-weight: 800;
+.login-brand-text {
     color: var(--text);
-    letter-spacing: -1px;
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    line-height: 1;
+    text-transform: uppercase;
 }
 
 .login-brand-light {
@@ -77,13 +86,49 @@
     height: 48px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    padding: 0 48px 0 16px;
+    padding: 0 16px;
     outline: none;
     font-size: 15px;
     background: var(--bg-soft);
     color: var(--text);
     transition: all 0.2s ease;
     font-weight: 400;
+}
+
+.login-field--password input {
+    padding-right: 48px;
+}
+
+.login-password-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s ease, background 0.2s ease;
+}
+
+.login-password-toggle:hover:not(:disabled) {
+    color: var(--text);
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.login-password-toggle:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.login-field:focus-within .login-password-toggle {
+    color: var(--text-secondary);
 }
 
 .login-field input::placeholder {
@@ -95,21 +140,6 @@
     border-color: var(--accent-purple);
     background: var(--card);
     box-shadow: 0 0 0 4px var(--primary-focus);
-}
-
-.login-icon {
-    position: absolute;
-    right: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    opacity: 0.4;
-    font-size: 18px;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-}
-
-.login-field:focus-within .login-icon {
-    opacity: 0.6;
 }
 
 .login-row {
@@ -139,155 +169,35 @@
     cursor: pointer;
 }
 
-/* Кнопка с анимацией отпечатка пальца */
-.login-fingerprint-btn {
+.login-submit-btn {
     align-items: center;
     background: var(--primary);
-    border-radius: 40px;
-    box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
-    display: flex;
-    height: 56px;
-    justify-content: center;
-    position: relative;
-    width: 140px;
     border: none;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    color: #fff;
     cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.login-fingerprint-btn:hover:not(:disabled) {
-    background: var(--primary-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 18px 35px rgba(0,0,0,0.3), 0 12px 15px rgba(0,0,0,0.25);
-}
-
-.login-fingerprint-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.login-btn-text {
-    color: white;
-    position: absolute;
-    transition: opacity 300ms, transform 300ms;
-    user-select: none;
-    font-weight: 600;
+    display: inline-flex;
     font-size: 15px;
+    font-weight: 600;
+    height: 48px;
+    justify-content: center;
     letter-spacing: 0.3px;
+    min-width: 120px;
+    padding: 0 24px;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    user-select: none;
 }
 
-.login-fingerprint-btn .fingerprint {
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    opacity: 0;
-    position: absolute;
-    stroke: #555;
-    transition: opacity 1ms;
-    width: 70px;
-    height: 70px;
+.login-submit-btn:hover:not(:disabled) {
+    background: var(--primary-hover);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
 }
 
-.login-fingerprint-btn .fingerprint-active {
-    stroke: #fff;
-}
-
-.login-fingerprint-btn .fingerprint-out {
-    opacity: 1;
-}
-
-.login-fingerprint-btn .odd {
-    stroke-dasharray: 0px 50px;
-    stroke-dashoffset: 1px;
-    transition: stroke-dasharray 1ms;
-}
-
-.login-fingerprint-btn .even {
-    stroke-dasharray: 50px 50px;
-    stroke-dashoffset: -41px;
-    transition: stroke-dashoffset 1ms;
-}
-
-.login-fingerprint-btn .ok {
-    opacity: 0;
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 50px;
-    height: 50px;
-}
-
-/* Активное состояние анимации */
-.login-fingerprint-btn.active {
-    animation: 4s LoginContainer forwards;
-}
-
-.login-fingerprint-btn.active .login-btn-text {
-    opacity: 0;
-    animation: 4s LoginText forwards;
-}
-
-.login-fingerprint-btn.active .fingerprint {
-    opacity: 1;
-    transition: opacity 300ms 200ms;
-}
-
-.login-fingerprint-btn.active .fingerprint-base .odd {
-    stroke-dasharray: 50px 50px;
-    transition: stroke-dasharray 800ms 100ms;
-}
-
-.login-fingerprint-btn.active .fingerprint-base .even {
-    stroke-dashoffset: 0px;
-    transition: stroke-dashoffset 800ms;
-}
-
-.login-fingerprint-btn.active .fingerprint-active .odd {
-    stroke-dasharray: 50px 50px;
-    transition: stroke-dasharray 1500ms 1200ms;
-}
-
-.login-fingerprint-btn.active .fingerprint-active .even {
-    stroke-dashoffset: 0px;
-    transition: stroke-dashoffset 1500ms 1000ms;
-}
-
-.login-fingerprint-btn.active .fingerprint-out {
-    opacity: 0;
-    transition: opacity 300ms 2800ms;
-}
-
-.login-fingerprint-btn.active .ok {
-    opacity: 1;
-    animation: 4s LoginOk forwards;
-}
-
-@keyframes LoginContainer {
-    0% { width: 140px }
-    8% { width: 56px }
-    75% { transform: scale(1); }
-    80% { transform: scale(1.15); }
-    82% { transform: scale(1); }
-    92% { width: 56px }
-    100% { width: 140px }
-}
-
-@keyframes LoginText {
-    0% { opacity: 1; transform: scale(1); }
-    8% { opacity: 0; transform: scale(0.5); }
-    92% { opacity: 0; transform: scale(0.5); }
-    100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes LoginOk {
-    0% { opacity: 0 }
-    72% { opacity: 0; transform: translate(-50%, -50%) scale(0); }
-    78% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-    82% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    90% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-    95% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-    100% { opacity: 0 }
+.login-submit-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 /* Планшеты (768px и меньше) */
@@ -297,13 +207,18 @@
         padding: 40px 32px;
     }
 
-    .login-brand {
-        font-size: 42px;
+    .login-brand-mark {
+        height: 50px;
+        width: 50px;
     }
 
     .login-brand-icon {
-        width: 40px;
-        height: 40px;
+        height: 26px;
+        width: 26px;
+    }
+
+    .login-brand-text {
+        font-size: 1.5rem;
     }
 }
 
@@ -315,17 +230,23 @@
     }
 
     .login-brand {
-        font-size: 36px;
-        gap: 8px;
+        gap: 10px;
+    }
+
+    .login-brand-mark {
+        height: 48px;
+        width: 48px;
+        border-radius: 14px;
     }
 
     .login-brand-icon {
-        width: 36px;
-        height: 36px;
+        height: 24px;
+        width: 24px;
     }
 
-    .login-brand-strong {
-        font-size: 36px;
+    .login-brand-text {
+        font-size: 1.375rem;
+        letter-spacing: 0.1em;
     }
 
     .login-subtitle {
@@ -334,37 +255,16 @@
 
     .login-field input {
         height: 44px;
-        padding: 0 44px 0 14px;
         font-size: 14px;
     }
 
-    .login-fingerprint-btn {
-        height: 48px;
-        width: 120px;
+    .login-field--password input {
+        padding-right: 44px;
     }
 
-    .login-btn-text {
+    .login-submit-btn {
         font-size: 14px;
-    }
-
-    .login-fingerprint-btn .fingerprint {
-        width: 60px;
-        height: 60px;
-    }
-
-    .login-fingerprint-btn .ok {
-        width: 40px;
-        height: 40px;
-    }
-
-    @keyframes LoginContainer {
-        0% { width: 120px }
-        8% { width: 48px }
-        75% { transform: scale(1); }
-        80% { transform: scale(1.15); }
-        82% { transform: scale(1); }
-        92% { width: 48px }
-        100% { width: 120px }
+        min-width: 110px;
     }
 }
 
@@ -374,13 +274,18 @@
         padding: 24px 20px;
     }
 
-    .login-brand {
-        font-size: 32px;
+    .login-brand-mark {
+        height: 44px;
+        width: 44px;
     }
 
     .login-brand-icon {
-        width: 32px;
-        height: 32px;
+        height: 22px;
+        width: 22px;
+    }
+
+    .login-brand-text {
+        font-size: 1.25rem;
     }
 }
 
@@ -396,13 +301,22 @@
     }
 
     .login-brand {
-        font-size: 28px;
-        gap: 6px;
+        gap: 8px;
+    }
+
+    .login-brand-mark {
+        height: 40px;
+        width: 40px;
+        border-radius: 12px;
     }
 
     .login-brand-icon {
-        width: 28px;
-        height: 28px;
+        height: 20px;
+        width: 20px;
+    }
+
+    .login-brand-text {
+        font-size: 1.125rem;
     }
 
     .login-subtitle {
@@ -414,23 +328,8 @@
         font-size: 16px; /* предотвращение зума на iOS */
     }
 
-    .login-fingerprint-btn {
-        height: 48px;
-        width: 110px;
-    }
-
-    .login-btn-text {
+    .login-submit-btn {
         font-size: 13px;
+        min-width: 100px;
     }
-}
-
-.login-error {
-    margin-top: 8px;
-    color: #dc2626;
-    font-size: 14px;
-    text-align: center;
-    padding: 12px;
-    background: rgba(220, 38, 38, 0.08);
-    border-radius: var(--radius-sm);
-    border: 1px solid rgba(220, 38, 38, 0.2);
 }

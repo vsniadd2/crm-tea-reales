@@ -1,5 +1,12 @@
 import { API_URL, getAuthHeaders } from '../config/api'
 
+function appendPointId(body, pointId) {
+  if (pointId != null && pointId !== '') {
+    body.pointId = pointId
+  }
+  return body
+}
+
 export const clientService = {
   async getAll({ page = 1, limit = 20, search = '' } = {}) {
     const params = new URLSearchParams()
@@ -73,8 +80,8 @@ export const clientService = {
     return response.json()
   },
 
-  async addPurchase(clientDbId, price, items = [], paymentMethod = 'cash', employeeDiscount = 0, mixedParts = null) {
-    const body = { price, items, paymentMethod, employeeDiscount }
+  async addPurchase(clientDbId, price, items = [], paymentMethod = 'cash', employeeDiscount = 0, mixedParts = null, pointId = null) {
+    const body = appendPointId({ price, items, paymentMethod, employeeDiscount }, pointId)
     if (paymentMethod === 'mixed' && mixedParts) {
       body.cashPart = mixedParts.cashPart
       body.cardPart = mixedParts.cardPart
@@ -97,11 +104,11 @@ export const clientService = {
     return response.json()
   },
 
-  async creditAccount(clientDbId, amount) {
+  async creditAccount(clientDbId, amount, pointId = null) {
     const response = await fetch(`${API_URL}/clients/${clientDbId}/account-credit`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ amount })
+      body: JSON.stringify(appendPointId({ amount }, pointId))
     })
 
     if (response.status === 403) {
@@ -116,8 +123,8 @@ export const clientService = {
     return response.json()
   },
 
-  async createAnonymousPurchase(price, items = [], paymentMethod = 'cash', employeeDiscount = 0, mixedParts = null) {
-    const body = { price, items, paymentMethod, employeeDiscount }
+  async createAnonymousPurchase(price, items = [], paymentMethod = 'cash', employeeDiscount = 0, mixedParts = null, pointId = null) {
+    const body = appendPointId({ price, items, paymentMethod, employeeDiscount }, pointId)
     if (paymentMethod === 'mixed' && mixedParts) {
       body.cashPart = mixedParts.cashPart
       body.cardPart = mixedParts.cardPart
@@ -140,8 +147,8 @@ export const clientService = {
     return response.json()
   },
 
-  async create(clientData) {
-    const body = {
+  async create(clientData, pointId = null) {
+    const body = appendPointId({
       firstName: clientData.firstName,
       lastName: clientData.lastName,
       middleName: clientData.middleName,
@@ -150,7 +157,7 @@ export const clientService = {
       items: clientData.items || [],
       paymentMethod: clientData.paymentMethod || 'cash',
       employeeDiscount: clientData.employeeDiscount || 0
-    }
+    }, pointId ?? clientData.pointId)
     if (body.paymentMethod === 'mixed' && clientData.cashPart != null && clientData.cardPart != null) {
       body.cashPart = clientData.cashPart
       body.cardPart = clientData.cardPart

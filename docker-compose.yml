@@ -52,6 +52,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    ports:
+      # Только localhost — для Vite dev (npm run dev) на хосте; снаружи сервера не доступен
+      - "127.0.0.1:${BACKEND_PORT:-3001}:3000"
     networks:
       - tea_network
     volumes:

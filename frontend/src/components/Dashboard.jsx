@@ -11,12 +11,9 @@ const Dashboard = () => {
 
   return (
     <div className="main-screen">
-      <Header
-        onAddClient={() => setIsModalOpen(true)}
-        onSelectClient={(client) => setSelectedClient(client)}
-      />
+      <Header onAddClient={() => setIsModalOpen(true)} />
       <main className="main-content">
-        <ClientList onSelectClient={(client) => setSelectedClient(client)} />
+        <ClientList />
       </main>
       {isModalOpen && (
         <ClientModal onClose={() => setIsModalOpen(false)} />

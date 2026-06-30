@@ -75,9 +75,9 @@ export const useClients = ({ page = 1, limit = 20, search = '' } = {}) => {
     loadClients(page, limit, search)
   }, [loadClients, page, limit, search])
 
-  const addClient = async (clientData) => {
+  const addClient = async (clientData, pointId = null) => {
     try {
-      const newClient = await clientService.create(clientData)
+      const newClient = await clientService.create(clientData, pointId)
       await loadClients(page, limit, search)
       return { success: true, client: newClient }
     } catch (err) {
@@ -86,7 +86,7 @@ export const useClients = ({ page = 1, limit = 20, search = '' } = {}) => {
         if (refreshed) {
           // Повторяем попытку после обновления токена
           try {
-            const newClient = await clientService.create(clientData)
+            const newClient = await clientService.create(clientData, pointId)
             await loadClients(page, limit, search)
             return { success: true, client: newClient }
           } catch (retryErr) {
@@ -99,9 +99,9 @@ export const useClients = ({ page = 1, limit = 20, search = '' } = {}) => {
     }
   }
 
-  const addPurchase = async (clientDbId, price, items = [], paymentMethod = 'cash', employeeDiscount = 0, mixedParts = null) => {
+  const addPurchase = async (clientDbId, price, items = [], paymentMethod = 'cash', employeeDiscount = 0, mixedParts = null, pointId = null) => {
     try {
-      const result = await clientService.addPurchase(clientDbId, price, items, paymentMethod, employeeDiscount, mixedParts)
+      const result = await clientService.addPurchase(clientDbId, price, items, paymentMethod, employeeDiscount, mixedParts, pointId)
       await loadClients(page, limit, search)
       return { success: true, result }
     } catch (err) {
@@ -109,7 +109,7 @@ export const useClients = ({ page = 1, limit = 20, search = '' } = {}) => {
         const refreshed = await refreshAccessToken()
         if (refreshed) {
           try {
-            const result = await clientService.addPurchase(clientDbId, price, items, paymentMethod, employeeDiscount, mixedParts)
+            const result = await clientService.addPurchase(clientDbId, price, items, paymentMethod, employeeDiscount, mixedParts, pointId)
             await loadClients(page, limit, search)
             return { success: true, result }
           } catch (retryErr) {

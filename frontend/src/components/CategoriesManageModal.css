@@ -660,12 +660,8 @@
   border-top: 1px solid var(--border-soft);
 }
 
-.categories-manage-content .close-modal {
-  transition: background 0.2s ease, transform 0.15s ease;
-}
-
 .categories-manage-content .close-modal:hover {
-  transform: scale(1.05);
+    background: #eef2f7;
 }
 
 .categories-manage-children ul {

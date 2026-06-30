@@ -3,6 +3,7 @@ import { useClients } from '../hooks/useClients'
 import { useNotification } from './NotificationProvider'
 import { useDataRefresh } from '../contexts/DataRefreshContext'
 import { useAuth } from '../contexts/AuthContext'
+import { usePointContext } from '../contexts/PointContext'
 import ProductSelector from './ProductSelector'
 import PaymentMethodModal from './PaymentMethodModal'
 import { clientService } from '../services/clientService'
@@ -27,6 +28,7 @@ const PurchaseModal = ({ client, onClose }) => {
   const { showNotification } = useNotification()
   const { refreshAll } = useDataRefresh()
   const { refreshAccessToken, ensureValidToken } = useAuth()
+  const { activePointId } = usePointContext()
 
   useEffect(() => {
     setLocalClient(client)
@@ -88,7 +90,7 @@ const PurchaseModal = ({ client, onClose }) => {
 
       const mixedParts = paymentMethod === 'mixed' && options ? { cashPart: options.cashPart, cardPart: options.cardPart } : null
       const emp = purchaseData.employeeDiscount || 0
-      const result = await addPurchase(localClient.id, purchaseData.price, purchaseData.items, paymentMethod, emp, mixedParts)
+      const result = await addPurchase(localClient.id, purchaseData.price, purchaseData.items, paymentMethod, emp, mixedParts, activePointId)
       if (result.success) {
         showNotification('Покупка успешно добавлена!', 'success')
         setTimeout(() => refreshAll(), 100)
@@ -139,7 +141,7 @@ const PurchaseModal = ({ client, onClose }) => {
 
     setCreditLoading(true)
     try {
-      const data = await clientService.creditAccount(localClient.id, amt)
+      const data = await clientService.creditAccount(localClient.id, amt, activePointId)
       if (data.client) {
         setLocalClient(prev => ({ ...prev, ...data.client }))
       }
@@ -151,7 +153,7 @@ const PurchaseModal = ({ client, onClose }) => {
         const refreshed = await refreshAccessToken()
         if (refreshed) {
           try {
-            const data = await clientService.creditAccount(localClient.id, amt)
+            const data = await clientService.creditAccount(localClient.id, amt, activePointId)
             if (data.client) {
               setLocalClient(prev => ({ ...prev, ...data.client }))
             }

@@ -120,7 +120,7 @@ const CategoriesPage = () => {
         await adminProductsService.createCategory({
           name: formData.name,
           color: DEFAULT_CATEGORY_COLOR,
-          icon: '/img/coffee-beans-filled-roast-brew-svgrepo-com.svg',
+          icon: '/img/tea-cup-svgrepo-com.svg',
           displayOrder: 0
         })
       }

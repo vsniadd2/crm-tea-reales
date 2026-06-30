@@ -5,17 +5,15 @@ import PurchaseHistory from './PurchaseHistory'
 import Header from './Header'
 import ClientList from './ClientList'
 import ClientModal from './ClientModal'
-import PurchaseModal from './PurchaseModal'
 import CategoriesManageModal from './CategoriesManageModal'
 import NewClientPage from './NewClientPage'
 import StatsPage from './StatsPage'
 import CategoriesPage from './CategoriesPage'
 import Footer from './Footer'
-import HelloOverlay from './HelloOverlay'
 import './Dashboard.css'
 
 const AppRouter = () => {
-  const { isAuthenticated, loading, showHelloAfterLogin, clearShowHello } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
   const [currentPage, setCurrentPage] = useState(() => {
     // Загружаем последнюю открытую страницу из localStorage
     try {
@@ -30,7 +28,6 @@ const AppRouter = () => {
     }
   })
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedClient, setSelectedClient] = useState(null)
 
   // Сохраняем текущую страницу в localStorage при изменении
   const handleNavigate = (page) => {
@@ -64,7 +61,7 @@ const AppRouter = () => {
   const renderPage = () => {
     switch (currentPage) {
       case 'clients':
-        return <ClientList onSelectClient={(client) => setSelectedClient(client)} />
+        return <ClientList />
       case 'purchase-history':
         return <PurchaseHistory />
       case 'stats':
@@ -82,13 +79,9 @@ const AppRouter = () => {
 
   return (
     <div className="main-screen">
-      {showHelloAfterLogin && (
-        <HelloOverlay onEnd={clearShowHello} />
-      )}
-      <div className={`main-screen-content${showHelloAfterLogin ? ' hello-animation-active' : ''}`}>
+      <div className="main-screen-content">
         <Header
           onAddClient={() => setIsModalOpen(true)}
-          onSelectClient={(client) => setSelectedClient(client)}
           currentPage={currentPage}
           onNavigate={handleNavigate}
         />
@@ -98,9 +91,6 @@ const AppRouter = () => {
         <Footer />
         {isModalOpen && (
           <ClientModal onClose={() => setIsModalOpen(false)} />
-        )}
-        {selectedClient && (
-          <PurchaseModal client={selectedClient} onClose={() => setSelectedClient(null)} />
         )}
       </div>
     </div>

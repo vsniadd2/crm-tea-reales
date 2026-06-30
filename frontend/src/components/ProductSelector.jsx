@@ -183,8 +183,8 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   const cartItems = Object.values(cart)
   const cartTotal = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
 
-  // Функция для получения иконки категории: приоритет у icon из БД, иначе по названию, по умолчанию — кофейные зёрна
-  const DEFAULT_GROUP_ICON = '/img/coffee-beans-filled-roast-brew-svgrepo-com.svg'
+  // Функция для получения иконки категории: приоритет у icon из БД, иначе по названию, по умолчанию — чашка чая
+  const DEFAULT_GROUP_ICON = '/img/tea-cup-svgrepo-com.svg'
   const getCategoryIcon = (categoryId, categoryName, categoryIcon) => {
     if (categoryIcon && categoryIcon.trim()) {
       const src = categoryIcon.startsWith('/') ? categoryIcon : `/${categoryIcon.replace(/^\/+/, '')}`
@@ -198,12 +198,12 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
         <img src="/img/tea-cup-svgrepo-com.svg" alt="" style={{ width: '40px', height: '40px' }} />
       )
     }
-    if (name.includes('КОФЕЙНЫЕ НАПИТКИ')) {
+    if (name.includes('ЧАЙНЫЕ НАПИТКИ') || name.includes('ГОРЯЧИЙ ЧАЙ')) {
       return (
-        <img src="/img/coffee-svgrepo-com.svg" alt="" style={{ width: '40px', height: '40px' }} />
+        <img src="/img/tea-cup-svgrepo-com.svg" alt="" style={{ width: '40px', height: '40px' }} />
       )
     }
-    if (name.includes('КОФЕ ФАСОВАННЫЙ')) {
+    if (name.includes('ЧАЙ ФАСОВАННЫЙ') || name.includes('ЧАЙ ЛИСТОВОЙ')) {
       return (
         <img src={DEFAULT_GROUP_ICON} alt="" style={{ width: '40px', height: '40px' }} />
       )

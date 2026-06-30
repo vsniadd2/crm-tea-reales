@@ -120,7 +120,7 @@ const CategoriesManageModal = ({ onClose }) => {
         await adminProductsService.createCategory({
           name: formData.name,
           color: DEFAULT_CATEGORY_COLOR,
-          icon: '/img/coffee-beans-filled-roast-brew-svgrepo-com.svg',
+          icon: '/img/tea-cup-svgrepo-com.svg',
           displayOrder: 0,
           trackCharts: formData.trackCharts
         })
@@ -360,7 +360,7 @@ const CategoriesManageModal = ({ onClose }) => {
                     <input
                       id="new-category-name"
                       type="text"
-                      placeholder="Например: КОФЕ ФАСОВАННЫЙ"
+                      placeholder="Например: ЧАЙ ФАСОВАННЫЙ"
                       value={formData.name}
                       onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     />
@@ -449,7 +449,7 @@ const CategoriesManageModal = ({ onClose }) => {
                               <div className="categories-manage-form-title">Новая подкатегория</div>
                               <div className="categories-manage-form">
                                 <div className="categories-manage-form-group">
-                                  <label>Название подкатегории — например: Группа КОФЕ: 250ГР</label>
+                                  <label>Название подкатегории — например: Группа ЧАЙ: 100ГР</label>
                                   <input placeholder="Название подкатегории" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} />
                                 </div>
                                 <div className="categories-manage-form-actions">
@@ -503,7 +503,7 @@ const CategoriesManageModal = ({ onClose }) => {
                                             <div className="categories-manage-form">
                                               <div className="categories-manage-form-group">
                                                 <label>Название товара — как будет отображаться в заказе</label>
-                                                <input placeholder="Например: Кофе арабика 250г" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} />
+                                                <input placeholder="Например: Чай зелёный 100г" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} />
                                               </div>
                                               <div className="categories-manage-form-group">
                                                 <label>Цена (BYN) — число, можно с копейками (например 18.00)</label>

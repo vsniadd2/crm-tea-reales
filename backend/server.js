@@ -21,9 +21,13 @@ const TRANSACTION_SELECT_MSK = `t.id, t.client_id, t.amount, t.discount, t.final
 // Для таблицы clients (без алиаса)
 const CREATED_AT_MSK_CLIENT_SQL = "to_char(created_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"+03:00\"') as created_at";
 
-// Точки продаж: для user — только своя точка, для admin — опционально query.pointId или все
+// Точки продаж: admin и accessAllPoints — фильтр по query; user — только своя точка
+function canAccessAllPoints(user) {
+  return user?.role === 'admin' || user?.accessAllPoints === true;
+}
+
 function getPointFilter(req) {
-  if (req.user?.role === 'admin') {
+  if (canAccessAllPoints(req.user)) {
     const q = req.query.pointId;
     if (q !== undefined && q !== '' && q !== null) {
       const id = parseInt(q, 10);
@@ -34,27 +38,35 @@ function getPointFilter(req) {
   return { pointId: req.user?.pointId ?? null, isAdmin: false };
 }
 
-// point_id при создании транзакции: user — своя точка, admin — из body или точка из профиля (червенский)
-async function getPointIdForInsert(req) {
-  if (req.user?.role === 'admin') {
+// point_id при создании транзакции: user — своя точка; admin / accessAllPoints — из body (обязательно)
+const VALID_POINT_IDS = new Set([1, 2]);
+
+function getPointIdForInsert(req) {
+  if (canAccessAllPoints(req.user)) {
     const fromBody = req.body.pointId;
-    if (fromBody != null && fromBody !== '') {
-      const id = parseInt(fromBody, 10);
-      if (!Number.isNaN(id)) return id;
+    if (fromBody == null || fromBody === '') {
+      return { error: 'Укажите точку продаж (pointId: 1 или 2)' };
     }
-    let pointId = req.user?.pointId ?? null;
-    // Fallback: если в токене нет pointId (старый токен), берём из БД
-    if (pointId == null && req.user?.userId) {
-      try {
-        const row = await pool.query('SELECT point_id FROM admins WHERE id = $1', [req.user.userId]);
-        pointId = row.rows[0]?.point_id ?? null;
-      } catch {
-        pointId = null;
-      }
+    const id = parseInt(fromBody, 10);
+    if (Number.isNaN(id) || !VALID_POINT_IDS.has(id)) {
+      return { error: 'Некорректная точка продаж. Допустимы: 1 (Червенский), 2 (Палаца)' };
     }
-    return pointId;
+    return { pointId: id };
   }
-  return req.user?.pointId ?? null;
+  const pointId = req.user?.pointId ?? null;
+  if (pointId == null) {
+    return { error: 'У пользователя не задана точка продаж' };
+  }
+  return { pointId };
+}
+
+function resolvePointIdForInsert(req, res) {
+  const result = getPointIdForInsert(req);
+  if (result.error) {
+    res.status(400).json({ error: result.error });
+    return null;
+  }
+  return result.pointId;
 }
 
 const app = express();
@@ -130,16 +142,24 @@ function getReplacementDiscountPercent(clientRow) {
   return Math.min(100, personal + goldPart);
 }
 
-// Инициализация базы данных при старте (будет выполнена перед запуском сервера)
+function userCanAccessPoint(req, pointId) {
+  if (canAccessAllPoints(req.user)) return true;
+  if (pointId == null) return true;
+  return pointId === req.user?.pointId;
+}
 
 // Маршрут для входа
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    const password = req.body.password;
 
-    // Поиск админа в базе с названием точки (если есть)
+    if (!username || password == null || password === '') {
+      return res.status(400).json({ error: 'Укажите логин и пароль' });
+    }
+
     const result = await pool.query(
-      `SELECT a.id, a.username, a.password, a.role, a.point_id, p.name as point_name
+      `SELECT a.id, a.username, a.password, a.role, a.point_id, a.access_all_points, p.name as point_name
        FROM admins a
        LEFT JOIN points p ON a.point_id = p.id
        WHERE a.username = $1`,
@@ -152,16 +172,28 @@ app.post('/api/auth/login', async (req, res) => {
 
     const admin = result.rows[0];
 
-    // Проверка пароля
-    const validPassword = await bcrypt.compare(password, admin.password);
+    if (!admin.password || typeof admin.password !== 'string') {
+      console.error('Ошибка входа: у пользователя', username, 'не задан хеш пароля');
+      return res.status(500).json({ error: 'Ошибка сервера' });
+    }
+
+    let validPassword = false;
+    try {
+      validPassword = await bcrypt.compare(String(password), admin.password);
+    } catch (compareError) {
+      console.error('Ошибка входа: сравнение пароля для', username, compareError.message);
+      return res.status(401).json({ error: 'Неверный логин или пароль' });
+    }
+
     if (!validPassword) {
       return res.status(401).json({ error: 'Неверный логин или пароль' });
     }
 
     const role = admin.role || 'user';
+    const accessAllPoints = !!admin.access_all_points;
     const pointId = admin.point_id != null ? admin.point_id : null;
-    const pointName = admin.point_name || null;
-    const accessToken = generateAccessToken(admin.id, admin.username, role, pointId);
+    const pointName = accessAllPoints ? null : (admin.point_name || null);
+    const accessToken = generateAccessToken(admin.id, admin.username, role, pointId, accessAllPoints);
     const refreshToken = generateRefreshToken(admin.id, admin.username);
 
     res.json({
@@ -170,9 +202,10 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         id: admin.id,
         username: admin.username,
-        role: admin.role || 'user',
-        pointId: pointId,
-        pointName: pointName
+        role,
+        pointId: accessAllPoints ? null : pointId,
+        pointName: accessAllPoints ? null : pointName,
+        accessAllPoints
       }
     });
   } catch (error) {
@@ -204,16 +237,22 @@ app.post('/api/auth/refresh', async (req, res) => {
       return res.status(403).json({ error: 'Refresh token недействителен' });
     }
     const adminRow = await pool.query(
-      'SELECT a.role, a.point_id, p.name as point_name FROM admins a LEFT JOIN points p ON a.point_id = p.id WHERE a.id = $1',
+      'SELECT a.role, a.point_id, a.access_all_points, p.name as point_name FROM admins a LEFT JOIN points p ON a.point_id = p.id WHERE a.id = $1',
       [decoded.userId]
     );
     const row = adminRow.rows[0];
     const role = row?.role || 'user';
+    const accessAllPoints = !!row?.access_all_points;
     const pointId = row?.point_id != null ? row.point_id : null;
-    const accessToken = generateAccessToken(decoded.userId, decoded.username, role, pointId);
+    const accessToken = generateAccessToken(decoded.userId, decoded.username, role, pointId, accessAllPoints);
     res.json({
       accessToken,
-      user: row ? { pointId: pointId, pointName: row.point_name || null, role } : undefined
+      user: row ? {
+        pointId: accessAllPoints ? null : pointId,
+        pointName: accessAllPoints ? null : (row.point_name || null),
+        role,
+        accessAllPoints
+      } : undefined
     });
   } catch (e) {
     res.status(500).json({ error: 'Ошибка сервера' });
@@ -384,6 +423,9 @@ app.post('/api/clients', verifyAccessToken, async (req, res) => {
     const priceParsed = Number.parseFloat(req.body.price);
     const price = Number.isFinite(priceParsed) ? priceParsed : 0;
 
+    const pointIdForInsert = resolvePointIdForInsert(req, res);
+    if (pointIdForInsert == null) return;
+
     // Проверка существования клиента по ID (только если ID задан)
     if (clientId != null) {
       const existingClientById = await pool.query(
@@ -449,7 +491,7 @@ app.post('/api/clients', verifyAccessToken, async (req, res) => {
       }
     }
     const createdByUser = req.user?.username || null;
-    const pointId = await getPointIdForInsert(req);
+    const pointId = pointIdForInsert;
     const transactionResult = await pool.query(`
       INSERT INTO transactions (client_id, amount, discount, final_amount, payment_method, employee_discount, created_by_user, point_id, cash_part, card_part)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -495,6 +537,12 @@ app.post('/api/clients/:id/purchase', verifyAccessToken, async (req, res) => {
   const dbClient = await pool.connect();
   try {
     await dbClient.query('BEGIN');
+
+    const pointIdForInsert = resolvePointIdForInsert(req, res);
+    if (pointIdForInsert == null) {
+      await dbClient.query('ROLLBACK');
+      return;
+    }
     
     const clientId = req.params.id;
     const { price, items } = req.body; // items - массив товаров [{productId, productName, productPrice, quantity}]
@@ -541,7 +589,7 @@ app.post('/api/clients/:id/purchase', verifyAccessToken, async (req, res) => {
       }
     }
     const createdByUser = req.user?.username || null;
-    const pointId = await getPointIdForInsert(req);
+    const pointId = pointIdForInsert;
     const transactionResult = await dbClient.query(
       'INSERT INTO transactions (client_id, amount, discount, final_amount, payment_method, employee_discount, created_by_user, point_id, cash_part, card_part) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id',
       [clientId, priceFloat, discount, finalAmount, paymentMethod, employeeDiscount, createdByUser, pointId, cashPart, cardPart]
@@ -610,6 +658,12 @@ app.post('/api/clients/:id/account-credit', verifyAccessToken, async (req, res) 
 
     await dbClient.query('BEGIN');
 
+    const pointIdForInsert = resolvePointIdForInsert(req, res);
+    if (pointIdForInsert == null) {
+      await dbClient.query('ROLLBACK');
+      return;
+    }
+
     const clientResult = await dbClient.query('SELECT * FROM clients WHERE id = $1', [clientId]);
     if (clientResult.rows.length === 0) {
       await dbClient.query('ROLLBACK');
@@ -627,7 +681,7 @@ app.post('/api/clients/:id/account-credit', verifyAccessToken, async (req, res) 
     );
 
     const createdByUser = req.user?.username || null;
-    const pointId = await getPointIdForInsert(req);
+    const pointId = pointIdForInsert;
     await dbClient.query(
       `INSERT INTO transactions (client_id, amount, discount, final_amount, payment_method, employee_discount, created_by_user, point_id, cash_part, card_part)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -660,6 +714,9 @@ app.post('/api/purchases/anonymous', verifyAccessToken, async (req, res) => {
       return res.status(400).json({ error: 'Укажите сумму заказа' });
     }
 
+    const pointIdForInsert = resolvePointIdForInsert(req, res);
+    if (pointIdForInsert == null) return;
+
     // Без скидки для анонимных заказов
     const discount = 0;
     const employeeDiscount = parseFloat(req.body.employeeDiscount || 0);
@@ -675,7 +732,7 @@ app.post('/api/purchases/anonymous', verifyAccessToken, async (req, res) => {
       }
     }
     const createdByUser = req.user?.username || null;
-    const pointId = await getPointIdForInsert(req);
+    const pointId = pointIdForInsert;
     const transactionResult = await pool.query(
       'INSERT INTO transactions (client_id, amount, discount, final_amount, payment_method, employee_discount, created_by_user, point_id, cash_part, card_part) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
       [priceFloat, discount, finalAmount, paymentMethod, employeeDiscount, createdByUser, pointId, cashPart, cardPart]
@@ -866,7 +923,7 @@ app.get('/api/purchases/payment-stats', verifyAccessToken, async (req, res) => {
   }
 });
 
-// Маршрут для получения статистики продаж по товарам (только напитки, исключая пачки кофе и турки)
+// Маршрут для получения статистики продаж по товарам (только напитки, исключая фасованный чай и посуду)
 app.get('/api/orders/stats/products', verifyAccessToken, async (req, res) => {
   try {
     const dateFrom = req.query.dateFrom || null;
@@ -895,8 +952,8 @@ app.get('/api/orders/stats/products', verifyAccessToken, async (req, res) => {
             ti.product_name NOT ILIKE '%пачка%'
             AND ti.product_name NOT ILIKE '%турка%'
             AND ti.product_name NOT ILIKE '%упаковка%'
-            AND ti.product_name NOT ILIKE '%кофе фасованный%'
-            AND ti.product_name NOT ILIKE '%кофе в зернах%'
+            AND ti.product_name NOT ILIKE '%чай фасованный%'
+            AND ti.product_name NOT ILIKE '%чай листовой%'
           )
       ) s
       WHERE 1=1
@@ -1471,7 +1528,7 @@ app.get('/api/purchases/:id', verifyAccessToken, async (req, res) => {
     }
 
     const purchaseRow = result.rows[0];
-    if (req.user?.role !== 'admin' && purchaseRow.point_id != null && purchaseRow.point_id !== req.user?.pointId) {
+    if (!userCanAccessPoint(req, purchaseRow.point_id)) {
       return res.status(403).json({ error: 'Доступ запрещён' });
     }
     
@@ -1555,7 +1612,7 @@ app.post('/api/purchases/replacement', verifyAccessToken, async (req, res) => {
       return res.status(404).json({ error: 'Заказ не найден' });
     }
     const original = origResult.rows[0];
-    if (req.user?.role !== 'admin' && original.point_id != null && original.point_id !== req.user?.pointId) {
+    if (!userCanAccessPoint(req, original.point_id)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Доступ запрещён' });
     }
@@ -1654,7 +1711,7 @@ app.patch('/api/purchases/:id', verifyAccessToken, async (req, res) => {
       return res.status(404).json({ error: 'Покупка не найдена' });
     }
     const row = checkResult.rows[0];
-    if (req.user?.role !== 'admin' && row.point_id != null && row.point_id !== req.user?.pointId) {
+    if (!userCanAccessPoint(req, row.point_id)) {
       return res.status(403).json({ error: 'Доступ запрещён' });
     }
     

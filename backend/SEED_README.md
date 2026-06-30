@@ -19,14 +19,14 @@ CSV файл должен содержать колонки:
 
 ```bash
 # С локальной машины на сервер
-scp clients_74d3ad66-b236-4d84-9bdf-1f4cdc7cb72e.csv root@server-fxzrsp:~/realese-coffee/
+scp clients_74d3ad66-b236-4d84-9bdf-1f4cdc7cb72e.csv root@server-fxzrsp:~/crm-tea/
 ```
 
 ### 2. Зайти на сервер и запустить импорт
 
 ```bash
 ssh root@server-fxzrsp
-cd ~/realese-coffee
+cd ~/crm-tea
 
 # Запустить импорт через Docker (рекомендуется)
 docker compose exec backend node seed-prod.js
@@ -41,14 +41,14 @@ exit
 ### 3. Если БД работает на хосте (не в Docker)
 
 ```bash
-cd ~/realese-coffee/backend
+cd ~/crm-tea/backend
 
 # Установить переменные окружения (если нужно)
 export DB_HOST=localhost
 export DB_PORT=5432
 export DB_USER=admin
 export DB_PASSWORD=admin123
-export DB_NAME=coffee_crm
+export DB_NAME=tea_crm
 
 # Запустить скрипт
 node seed-prod.js
