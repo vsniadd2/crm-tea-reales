@@ -305,6 +305,10 @@
 }
 
 .clients-table tbody tr.clickable-row:focus {
+    outline: none;
+}
+
+.clients-table tbody tr.clickable-row:focus-visible {
     outline: 2px solid var(--border);
     outline-offset: -2px;
 }

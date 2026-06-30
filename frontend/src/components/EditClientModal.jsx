@@ -48,6 +48,11 @@ const EditClientModal = ({ client, onClose }) => {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose, confirmDelete])
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
