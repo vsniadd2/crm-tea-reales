@@ -2,7 +2,8 @@ import React from 'react'
 import './ClientCard.css'
 import { formatMinskDate } from '../utils/dateTime'
 import { normalizeMiddleNameForDisplay, normalizeClientIdForDisplay } from '../utils/clientDisplay'
-import { personalDiscountPercent } from '../utils/clientDiscount'
+import { personalDiscountPercent, loyaltyDiscountPercentForStatus } from '../utils/clientDiscount'
+import ClientStatusChip from './ClientStatusChip'
 
 const ClientCard = ({ client }) => {
   const fullName = [
@@ -15,17 +16,17 @@ const ClientCard = ({ client }) => {
 
   const createdDate = formatMinskDate(client.created_at)
 
-  const isGold = client.status === 'gold'
   const personalPct = personalDiscountPercent(client)
-  const orderDiscountPct = Math.min(100, personalPct + (isGold ? 10 : 0))
+  const orderDiscountPct = Math.min(100, personalPct + loyaltyDiscountPercentForStatus(client.status))
 
   return (
     <div className={`client-card ${client.status}`}>
       <div className="client-header">
         <div className="client-name">{fullName}</div>
-        <span className={`status-badge ${client.status}`}>
-          {client.status.toUpperCase()}
-        </span>
+        <ClientStatusChip
+          status={client.status}
+          personalDiscount={client.personal_discount_percent}
+        />
       </div>
       <div className="client-info">
         <div className="client-info-row">

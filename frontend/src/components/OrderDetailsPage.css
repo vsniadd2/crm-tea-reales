@@ -34,19 +34,7 @@
 }
 
 .date-input {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  background: var(--card);
-  color: var(--text);
-}
-
-.date-input:focus {
-  border-color: #7aa7d9;
-  box-shadow: 0 0 0 3px var(--primary-focus);
+  min-width: 160px;
 }
 
 .clear-btn {
@@ -157,6 +145,11 @@
 
 .donut-chart-container .recharts-wrapper {
   overflow: visible;
+  outline: none !important;
+}
+
+.donut-chart-container .recharts-surface {
+  outline: none !important;
 }
 
 .day-top-products-legend {

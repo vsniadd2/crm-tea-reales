@@ -1,0 +1,17 @@
+.status-chip.has-personal-discount {
+    gap: 5px;
+    padding-right: 6px;
+}
+
+.status-chip-personal {
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(77, 122, 66, 0.14);
+    color: var(--accent-purple, #4d7a42);
+    border: 1px solid rgba(77, 122, 66, 0.28);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}

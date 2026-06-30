@@ -18,3 +18,7 @@ export function getUserTitle(user, activePointName) {
 export function canSelectActivePoint(user) {
   return user?.role === 'admin' || user?.accessAllPoints === true
 }
+
+export function isAdminUser(user) {
+  return user?.role === 'admin'
+}

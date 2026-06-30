@@ -15,6 +15,8 @@
     margin-bottom: 20px;
     flex-wrap: wrap;
     gap: 15px;
+    position: relative;
+    z-index: 0;
 }
 
 .purchase-history-header h2 {
@@ -130,6 +132,10 @@
 
 .date-input,
 .text-input {
+    width: 100%;
+}
+
+.text-input {
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -138,17 +144,12 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
     background: var(--card);
     color: var(--text);
-    width: 100%;
-}
-
-.date-input:focus,
-.text-input:focus {
-    border-color: #7aa7d9;
-    box-shadow: 0 0 0 3px var(--primary-focus);
-}
-
-.text-input {
     min-width: 200px;
+}
+
+.text-input:focus {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 3px var(--primary-focus);
 }
 
 .search-btn {
@@ -215,8 +216,8 @@
 }
 
 .payment-stat-total {
-    border-color: rgba(139, 92, 246, 0.3);
-    background: rgba(139, 92, 246, 0.05);
+    border-color: rgba(77, 122, 66, 0.3);
+    background: rgba(77, 122, 66, 0.05);
 }
 
 .payment-stat-label {
@@ -257,6 +258,54 @@
     contain: layout style paint;
     min-height: 400px;
     position: relative;
+}
+
+.purchases-table-wrap-loading .purchases-table tbody {
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
+}
+
+.purchases-table-loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(2px);
+    color: var(--muted);
+    font-size: 0.95rem;
+    font-weight: 500;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    animation: purchasesOverlayFadeIn 0.2s ease-out forwards;
+}
+
+@keyframes purchasesOverlayFadeIn {
+    to { opacity: 1; }
+}
+
+.purchases-table-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    padding: 60px 24px;
+    color: #7f8c8d;
+    text-align: center;
+}
+
+.purchases-table-empty h3 {
+    font-size: 1.5rem;
+    margin: 0 0 10px;
+    color: var(--text);
+}
+
+.purchases-table-empty p {
+    margin: 0;
+    max-width: 360px;
 }
 
 .purchases-table {
@@ -389,6 +438,12 @@
     border-color: var(--border-soft);
 }
 
+.status-chip.silver {
+    background: rgba(148, 163, 184, 0.18);
+    color: #475569;
+    border-color: rgba(100, 116, 139, 0.35);
+}
+
 .status-chip.gold {
     background: rgba(245, 175, 25, 0.18);
     color: #8a5b00;
@@ -464,9 +519,9 @@
 }
 
 .payment-method-mixed-badge {
-    background: rgba(139, 92, 246, 0.12);
+    background: rgba(77, 122, 66, 0.12);
     color: #6d28d9;
-    border-color: rgba(139, 92, 246, 0.35);
+    border-color: rgba(77, 122, 66, 0.35);
 }
 
 .payment-method-mixed-badge .payment-badge-icon {

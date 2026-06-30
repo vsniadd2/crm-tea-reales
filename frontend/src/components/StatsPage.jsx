@@ -4,6 +4,7 @@ import { orderStatsService } from '../services/orderStatsService'
 import { getProductsTree } from '../services/productsService'
 import { pointsService } from '../services/pointsService'
 import { useNotification } from './NotificationProvider'
+import DateInput from './DateInput'
 import {
   PieChart,
   Pie,
@@ -313,7 +314,7 @@ const StatsPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, selectedCategoryId, productViewType])
 
-  const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
+  const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#4d7a42', '#ec4899', '#14b8a6', '#f97316']
 
   // Подпись процентов на donut — в середине сегмента (внутри кольца), чтобы не обрезалось clipPath
   const renderPieLabel = (props) => {
@@ -359,7 +360,7 @@ const StatsPage = () => {
         <div className="day-top-products-content">
           <div className="donut-chart-container">
             <ResponsiveContainer width="100%" height={350}>
-              <PieChart>
+              <PieChart accessibilityLayer={false}>
                 <Pie
                   data={donutData}
                   cx="50%"
@@ -471,10 +472,9 @@ const StatsPage = () => {
           {(period === 'day' || productViewType === 'day') && (
             <label className="stats-point-select-wrap">
               <span className="stats-point-label">Дата:</span>
-              <input
-                type="date"
+              <DateInput
                 value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                onChange={setSelectedDate}
                 className="stats-date-input"
                 max={todayStr()}
               />
@@ -546,11 +546,10 @@ const StatsPage = () => {
                 <label htmlFor="stats-date-select">
                   {productViewType === 'day' ? 'Выберите день:' : 'Дата (для периода «День»):'}
                 </label>
-                <input
+                <DateInput
                   id="stats-date-select"
-                  type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={setSelectedDate}
                   className="stats-date-input"
                   max={todayStr()}
                 />
@@ -621,7 +620,7 @@ const StatsPage = () => {
                   <div className="day-top-products-content">
                     <div className="donut-chart-container">
                       <ResponsiveContainer width="100%" height={350}>
-                        <PieChart>
+                        <PieChart accessibilityLayer={false}>
                           <Pie
                             data={dayTopProducts.products}
                             cx="50%"

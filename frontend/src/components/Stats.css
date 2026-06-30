@@ -1,6 +1,7 @@
 .stats {
     display: flex;
     gap: 20px;
+    flex-wrap: wrap;
 }
 
 .stat-card {
@@ -20,16 +21,28 @@
     box-shadow: var(--shadow-md);
 }
 
+.stat-card.standart {
+    background: rgba(77, 122, 66, 0.1);
+    color: var(--text);
+    border-color: rgba(77, 122, 66, 0.2);
+}
+
+.stat-card.silver {
+    background: rgba(148, 163, 184, 0.18);
+    color: #475569;
+    border-color: rgba(100, 116, 139, 0.35);
+}
+
 .stat-card.gold {
     background: rgba(245, 175, 25, 0.12);
     color: #8a5b00;
     border-color: rgba(245, 175, 25, 0.3);
 }
 
-.stat-card.standart {
-    background: var(--accent-purple-light);
-    color: var(--text);
-    border-color: rgba(139, 92, 246, 0.2);
+.stat-card.personal-discount {
+    background: rgba(139, 92, 246, 0.12);
+    color: #6d28d9;
+    border-color: rgba(139, 92, 246, 0.35);
 }
 
 .stat-label {

@@ -7,13 +7,16 @@ import { pointsService } from '../services/pointsService'
 import OrderDetailsModal from './OrderDetailsModal'
 import ReplacementOrderModal from './ReplacementOrderModal'
 import ConfirmDialog from './ConfirmDialog'
+import DateInput from './DateInput'
+import ClientStatusChip from './ClientStatusChip'
 import { useNotification } from './NotificationProvider'
 import { normalizeMiddleNameForDisplay } from '../utils/clientDisplay'
+import { isAdminUser } from '../utils/userDisplay'
 import './PurchaseHistory.css'
 
 const PurchaseHistory = () => {
   const { refreshAccessToken, user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = isAdminUser(user)
   const canFilterByPoint = isAdmin || user?.accessAllPoints
   const { refreshKey, registerRefreshCallback } = useDataRefresh()
   const { showNotification } = useNotification()
@@ -70,6 +73,7 @@ const PurchaseHistory = () => {
   const wasFocusedRef = useRef(false)
   const cursorPositionRef = useRef(null)
   const isUserTypingRef = useRef(false)
+  const loadRequestIdRef = useRef(0)
 
   // Сохраняем фильтры в localStorage
   useEffect(() => {
@@ -137,8 +141,9 @@ const PurchaseHistory = () => {
   }, [searchName])
 
   const loadPurchases = useCallback(async (silent = false) => {
+    const requestId = ++loadRequestIdRef.current
+
     try {
-      // Показываем loading только при первой загрузке и не в silent режиме
       if (!silent) {
         if (isInitialLoad.current) {
           setLoading(true)
@@ -147,82 +152,62 @@ const PurchaseHistory = () => {
         }
       }
       setError(null)
+
+      const pointIdParam = canFilterByPoint
+        ? (selectedPointId !== '' ? selectedPointId : null)
+        : (user?.pointId ?? null)
+
+      const fetchPurchases = () => purchaseHistoryService.getPurchases({
+        page,
+        limit: 20,
+        dateFrom: dateFrom || null,
+        dateTo: dateTo || null,
+        searchName: debouncedSearchName || null,
+        pointId: pointIdParam
+      })
+
+      let data
       try {
-        const pointIdParam = canFilterByPoint
-          ? (selectedPointId !== '' ? selectedPointId : null)
-          : (user?.pointId ?? null)
-        const data = await purchaseHistoryService.getPurchases({
-          page,
-          limit: 20,
-          dateFrom: dateFrom || null,
-          dateTo: dateTo || null,
-          searchName: debouncedSearchName || null,
-          pointId: pointIdParam
-        })
-        
-        // Обновляем состояние с использованием requestAnimationFrame для плавности
-        requestAnimationFrame(() => {
-          setPurchases(data.purchases || [])
-          setTotalPages(data.pagination?.totalPages || 1)
-        })
-        
-        isInitialLoad.current = false
+        data = await fetchPurchases()
       } catch (e) {
         if (e?.message === 'UNAUTHORIZED') {
           const refreshed = await refreshAccessToken()
           if (refreshed) {
-            const pointIdParam = canFilterByPoint
-          ? (selectedPointId !== '' ? selectedPointId : null)
-          : (user?.pointId ?? null)
-            const data = await purchaseHistoryService.getPurchases({
-              page,
-              limit: 20,
-              dateFrom: dateFrom || null,
-              dateTo: dateTo || null,
-              searchName: debouncedSearchName || null,
-              pointId: pointIdParam
-            })
-            requestAnimationFrame(() => {
-              setPurchases(data.purchases || [])
-              setTotalPages(data.pagination?.totalPages || 1)
-            })
-            isInitialLoad.current = false
-            return
+            data = await fetchPurchases()
+          } else {
+            throw e
           }
+        } else {
+          throw e
         }
-        throw e
       }
+
+      if (requestId !== loadRequestIdRef.current) {
+        return
+      }
+
+      setPurchases(data.purchases || [])
+      setTotalPages(data.pagination?.totalPages || 1)
+      isInitialLoad.current = false
     } catch (err) {
+      if (requestId !== loadRequestIdRef.current) {
+        return
+      }
       setError(err?.message || 'Ошибка загрузки истории покупок')
-      setPurchases([])
+      if (isInitialLoad.current) {
+        setPurchases([])
+      }
       isInitialLoad.current = false
     } finally {
+      if (requestId !== loadRequestIdRef.current) {
+        return
+      }
       if (!silent) {
         setLoading(false)
         setIsRefreshing(false)
       }
-      // Восстанавливаем позицию скролла и фокус после обновления
-      requestAnimationFrame(() => {
-        const tableWrap = document.querySelector('.purchases-table-wrap')
-        if (tableWrap && savedScrollPositionRef.current > 0) {
-          tableWrap.scrollTop = savedScrollPositionRef.current
-        }
-        // Восстанавливаем фокус на input только если пользователь активно печатал
-        if (isUserTypingRef.current && wasFocusedRef.current && searchInputRef.current && searchName.length > 0) {
-          const savedPosition = cursorPositionRef.current !== null 
-            ? cursorPositionRef.current 
-            : searchInputRef.current.value.length
-          if (searchInputRef.current.value === searchName) {
-            searchInputRef.current.focus()
-            const position = Math.min(savedPosition, searchInputRef.current.value.length)
-            searchInputRef.current.setSelectionRange(position, position)
-          }
-        }
-        wasFocusedRef.current = false
-        isUserTypingRef.current = false
-      })
     }
-    }, [page, dateFrom, dateTo, debouncedSearchName, refreshAccessToken, searchName, canFilterByPoint, selectedPointId])
+  }, [page, dateFrom, dateTo, debouncedSearchName, refreshAccessToken, canFilterByPoint, selectedPointId, user?.pointId])
 
   useEffect(() => {
     loadPurchases()
@@ -271,6 +256,10 @@ const PurchaseHistory = () => {
 
   // Загрузка активных тикетов
   const loadActiveTickets = useCallback(async () => {
+    if (!isAdmin) {
+      setActiveTickets([])
+      return
+    }
     try {
       setLoadingTickets(true)
       try {
@@ -293,14 +282,17 @@ const PurchaseHistory = () => {
     } finally {
       setLoadingTickets(false)
     }
-  }, [refreshAccessToken])
+  }, [refreshAccessToken, isAdmin])
 
   useEffect(() => {
+    if (!isAdmin) {
+      setActiveTickets([])
+      return undefined
+    }
     loadActiveTickets()
-    // Обновляем тикеты каждые 30 секунд
     const interval = setInterval(loadActiveTickets, 30000)
     return () => clearInterval(interval)
-  }, [loadActiveTickets])
+  }, [loadActiveTickets, isAdmin])
 
   // Загрузка статистики по способам оплаты
   const loadPaymentStats = useCallback(async () => {
@@ -437,6 +429,7 @@ const PurchaseHistory = () => {
   }
 
   const handleClearHistory = async () => {
+    if (!isAdmin) return
     try {
       setLoadingTickets(true)
       try {
@@ -464,6 +457,7 @@ const PurchaseHistory = () => {
   }
 
   const handleCancelTicket = async (ticketId) => {
+    if (!isAdmin) return
     try {
       setLoadingTickets(true)
       try {
@@ -588,21 +582,19 @@ const PurchaseHistory = () => {
           </div>
           <div className="filter-group">
             <label htmlFor="dateFrom">От:</label>
-            <input
+            <DateInput
               id="dateFrom"
-              type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={setDateFrom}
               className="date-input"
             />
           </div>
           <div className="filter-group">
             <label htmlFor="dateTo">До:</label>
-            <input
+            <DateInput
               id="dateTo"
-              type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={setDateTo}
               className="date-input"
             />
           </div>
@@ -651,20 +643,23 @@ const PurchaseHistory = () => {
         </div>
       ) : (
         <>
-          {isRefreshing && purchases.length > 0 && (
-            <div className="refreshing-indicator">
-              <div className="loading-spinner">Обновление...</div>
-            </div>
-          )}
-          {purchases.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">📦</div>
-              <h3>Нет покупок</h3>
-              <p>История покупок пуста</p>
-            </div>
-          ) : (
-            <>
-              <div className="purchases-table-wrap">
+          <div className={`purchases-table-wrap ${isRefreshing ? 'purchases-table-wrap-loading' : ''}`}>
+            {isRefreshing && (
+              <div className="purchases-table-loading-overlay" aria-hidden="true">
+                Обновление…
+              </div>
+            )}
+            {purchases.length === 0 ? (
+              <div className="purchases-table-empty">
+                <div className="empty-icon">📦</div>
+                <h3>{debouncedSearchName || dateFrom || dateTo ? 'Ничего не найдено' : 'Нет покупок'}</h3>
+                <p>
+                  {debouncedSearchName || dateFrom || dateTo
+                    ? 'Попробуйте изменить фильтры или поисковый запрос'
+                    : 'История покупок пуста'}
+                </p>
+              </div>
+            ) : (
                 <table className="purchases-table">
                   <colgroup>
                     <col className="col-date" />
@@ -731,39 +726,39 @@ const PurchaseHistory = () => {
                           {(purchase.operation_type || 'sale').toLowerCase() === 'return' || (purchase.operation_type || 'sale').toLowerCase() === 'replacement' ? (
                             <span className="status-chip operation-replacement">Замена</span>
                           ) : (
-                            <span className={`status-chip ${purchase.client_status || 'standart'}`}>
-                              {(purchase.client_status || 'standart').toUpperCase()}
-                            </span>
+                            <ClientStatusChip
+                              status={purchase.client_status}
+                              personalDiscount={purchase.client_personal_discount}
+                            />
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+            )}
+          </div>
 
-              {totalPages > 1 && (
-                <div className="pagination">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="pagination-btn"
-                  >
-                    Назад
-                  </button>
-                  <span className="pagination-info">
-                    Страница {page} из {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="pagination-btn"
-                  >
-                    Вперед
-                  </button>
-                </div>
-              )}
-            </>
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || isRefreshing}
+                className="pagination-btn"
+              >
+                Назад
+              </button>
+              <span className="pagination-info">
+                Страница {page} из {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages || isRefreshing}
+                className="pagination-btn"
+              >
+                Вперед
+              </button>
+            </div>
           )}
         </>
       )}

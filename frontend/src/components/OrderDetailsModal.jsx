@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { normalizeMiddleNameForDisplay } from '../utils/clientDisplay'
+import ClientStatusChip from './ClientStatusChip'
 import './OrderDetailsModal.css'
 
 const OrderDetailsModal = ({ order, onClose, onMarkOperation, onStartReplacement, onDeleteOrder }) => {
@@ -262,9 +263,10 @@ const OrderDetailsModal = ({ order, onClose, onMarkOperation, onStartReplacement
                   </div>
                   <div className="order-details-item">
                     <span className="order-details-label">Статус клиента:</span>
-                    <span className={`status-chip ${order.client_status || 'standart'}`}>
-                      {(order.client_status || 'standart').toUpperCase()}
-                    </span>
+                    <ClientStatusChip
+                      status={order.client_status}
+                      personalDiscount={order.client_personal_discount}
+                    />
                   </div>
                 </>
               )}

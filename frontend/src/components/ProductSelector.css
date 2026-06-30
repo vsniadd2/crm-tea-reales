@@ -92,6 +92,11 @@
   transition: opacity 0.2s ease;
 }
 
+.category-icon-emoji {
+  font-size: 40px;
+  line-height: 1;
+}
+
 .category-button:hover .category-icon img {
   opacity: 1;
 }

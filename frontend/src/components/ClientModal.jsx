@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useClients } from '../hooks/useClients'
 import { clientService } from '../services/clientService'
 import { useNotification } from './NotificationProvider'
@@ -8,7 +8,13 @@ import { usePointContext } from '../contexts/PointContext'
 import { withAuthRetry } from '../utils/withAuthRetry'
 import ProductSelector from './ProductSelector'
 import PaymentMethodModal from './PaymentMethodModal'
-import { buildPurchaseDiscountInfo, effectiveDiscountPercentForPurchase, priceAfterPercentDiscount } from '../utils/clientDiscount'
+import { buildPurchaseDiscountInfo, effectiveDiscountPercentForPurchase, priceAfterPercentDiscount, formatClientStatus } from '../utils/clientDiscount'
+import {
+  applyEmployeeDiscount,
+  calcEmployeeDiscountAmount,
+  formatEmployeeDiscountBadge,
+  formatEmployeeDiscountHint
+} from '../utils/employeeDiscount'
 import './ClientModal.css'
 
 const ClientModal = ({ onClose }) => {
@@ -44,7 +50,18 @@ const ClientModal = ({ onClose }) => {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  const employeeDiscountAmount = employeeDiscount ? 1 : 0
+  const baseFinalBeforeEmployee = useMemo(() => {
+    const price = productsTotal > 0 ? productsTotal : (Number.parseFloat(formData.price) || 0)
+    if (price <= 0) return null
+    if (discountInfo) return discountInfo.finalPrice
+    return price
+  }, [productsTotal, formData.price, discountInfo])
+
+  const employeeDiscountAmount = calcEmployeeDiscountAmount(baseFinalBeforeEmployee, employeeDiscount)
+
+  const displayFinalForPay = baseFinalBeforeEmployee != null
+    ? applyEmployeeDiscount(baseFinalBeforeEmployee, employeeDiscount).finalAmount
+    : null
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -179,14 +196,14 @@ const ClientModal = ({ onClose }) => {
                 quantity: item.quantity
               }))
               const afterDisc = priceAfterPercentDiscount(price, discPct)
-              const finalAmount = Math.max(0, afterDisc - employeeDiscountAmount)
+              const { amount: empAmount, finalAmount } = applyEmployeeDiscount(afterDisc, employeeDiscount)
               setPendingOrderData({
                 type: 'existing',
                 clientId: existingClient.id,
                 price,
                 items,
                 finalAmount,
-                employeeDiscount: employeeDiscountAmount
+                employeeDiscount: empAmount
               })
               setShowPaymentModal(true)
               return
@@ -215,6 +232,7 @@ const ClientModal = ({ onClose }) => {
         quantity: item.quantity
       }))
       
+      const { amount: empAmount, finalAmount } = applyEmployeeDiscount(finalPrice, employeeDiscount)
       setPendingOrderData({
         type: 'new',
         firstName: formData.firstName,
@@ -223,8 +241,8 @@ const ClientModal = ({ onClose }) => {
         clientId: formData.clientId,
         price: finalPrice,
         items,
-        finalAmount: Math.max(0, finalPrice - employeeDiscountAmount),
-        employeeDiscount: employeeDiscountAmount
+        finalAmount,
+        employeeDiscount: empAmount
       })
       setShowPaymentModal(true)
     } catch (error) {
@@ -330,7 +348,7 @@ const ClientModal = ({ onClose }) => {
                     ✓ Клиент найден: {checkedClient.first_name} {checkedClient.last_name}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-                    Статус: {checkedClient.status === 'gold' ? 'GOLD' : 'STANDART'} | 
+                    Статус: {formatClientStatus(checkedClient.status)} | 
                     Потрачено: {parseFloat(checkedClient.total_spent || 0).toFixed(2)} BYN
                   </div>
                 </div>
@@ -349,9 +367,9 @@ const ClientModal = ({ onClose }) => {
                           {discountInfo.originalPrice.toFixed(2)} BYN
                         </div>
                         <div className="price-final">
-                          {Math.max(0, discountInfo.finalPrice - employeeDiscountAmount).toFixed(2)} BYN
+                          {(displayFinalForPay ?? discountInfo.finalPrice).toFixed(2)} BYN
                           {employeeDiscountAmount > 0 && (
-                            <span className="employee-discount-badge"> (−1 BYN)</span>
+                            <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
                           )}
                         </div>
                       </div>
@@ -360,13 +378,10 @@ const ClientModal = ({ onClose }) => {
                   {checkedClient && (productsTotal > 0 || parseFloat(formData.price) > 0) && !discountInfo && (
                     <div className="price-preview">
                       <div className="price-final">
-                        {Math.max(
-                          0,
-                          (productsTotal > 0 ? productsTotal : parseFloat(formData.price) || 0) - employeeDiscountAmount
-                        ).toFixed(2)}{' '}
+                        {(displayFinalForPay ?? (productsTotal > 0 ? productsTotal : Number.parseFloat(formData.price) || 0)).toFixed(2)}{' '}
                         BYN
                         {employeeDiscountAmount > 0 && (
-                          <span className="employee-discount-badge"> (−1 BYN)</span>
+                          <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
                         )}
                       </div>
                     </div>
@@ -382,7 +397,7 @@ const ClientModal = ({ onClose }) => {
                   disabled={loading}
                 />
                 <span>Сотрудник</span>
-                {employeeDiscount && <span className="employee-checkbox-hint">(−1 BYN к заказу)</span>}
+                {employeeDiscount && <span className="employee-checkbox-hint">{formatEmployeeDiscountHint()}</span>}
               </label>
 
               <div className="modal-actions">

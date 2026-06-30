@@ -201,6 +201,7 @@ const EditClientModal = ({ client, onClose }) => {
                   className="edit-client-status-select"
                 >
                   <option value="standart">STANDART</option>
+                  <option value="silver">SILVER</option>
                   <option value="gold">GOLD</option>
                 </select>
               </div>

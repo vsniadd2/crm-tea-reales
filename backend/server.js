@@ -6,12 +6,10 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { pool, initDatabase } = require('./database');
 const {
-  generateAccessToken,
-  generateRefreshToken,
-  verifyAccessToken,
-  verifyRefreshToken,
-  requireAdmin
-} = require('./auth');
+  statusFromTotalSpent,
+  loyaltyDiscountPercentForPurchase,
+  loyaltyDiscountPercentForReplacement
+} = require('./clientTier');
 
 // Время в ответах API — всегда МСК/Минск (UTC+3)
 // БД хранит время в московском (сессия SET timezone = 'Europe/Moscow', CURRENT_TIMESTAMP даёт МСК)
@@ -68,6 +66,13 @@ function resolvePointIdForInsert(req, res) {
   }
   return result.pointId;
 }
+const {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  requireAdmin
+} = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -111,21 +116,12 @@ function clampPersonalDiscountPercent(raw) {
 }
 
 /**
- * Процент скидки на заказ: персональная + GOLD 10% (если есть), не больше 100%.
- * GOLD на эту покупку: клиент уже gold или после покупки total_spent >= 500.
- * Первая покупка только что созданного клиента: без части GOLD (персональная может быть).
+ * Процент скидки на заказ: персональная + уровень (silver 5%, gold 10%), не больше 100%.
+ * Уровень на покупку: клиент уже silver/gold или после покупки total_spent >= 250 / 500.
+ * Первая покупка нового клиента: без части уровня (персональная может быть).
  */
 function getPurchaseDiscountPercent(clientRow, priceFloat, opts = {}) {
-  const personal = clampPersonalDiscountPercent(clientRow.personal_discount_percent);
-  let goldPart = 0;
-  if (!opts.isNewClientFirstPurchase) {
-    const currentTotal = Number.parseFloat(clientRow.total_spent) || 0;
-    const price = Number.parseFloat(priceFloat) || 0;
-    const newTotal = currentTotal + price;
-    const alreadyGold = (clientRow.status || 'standart') === 'gold';
-    if (newTotal >= 500 || alreadyGold) goldPart = 10;
-  }
-  return Math.min(100, personal + goldPart);
+  return loyaltyDiscountPercentForPurchase(clientRow, priceFloat, opts);
 }
 
 function priceAfterPercentDiscount(price, discountPercent) {
@@ -134,12 +130,9 @@ function priceAfterPercentDiscount(price, discountPercent) {
   return p * (1 - d / 100);
 }
 
-/** Замена заказа: персональная + GOLD 10% при статусе gold, не больше 100% */
+/** Замена заказа: персональная + уровень по текущему статусу, не больше 100% */
 function getReplacementDiscountPercent(clientRow) {
-  if (!clientRow) return 0;
-  const personal = clampPersonalDiscountPercent(clientRow.personal_discount_percent);
-  const goldPart = (clientRow.status || 'standart') === 'gold' ? 10 : 0;
-  return Math.min(100, personal + goldPart);
+  return loyaltyDiscountPercentForReplacement(clientRow);
 }
 
 function userCanAccessPoint(req, pointId) {
@@ -347,14 +340,18 @@ app.get('/api/clients/stats', verifyAccessToken, async (req, res) => {
       SELECT
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE status = 'gold')::int AS gold,
-        COUNT(*) FILTER (WHERE status IS NULL OR status != 'gold')::int AS standart
+        COUNT(*) FILTER (WHERE status = 'silver')::int AS silver,
+        COUNT(*) FILTER (WHERE status = 'standart' OR status IS NULL)::int AS standart,
+        COUNT(*) FILTER (WHERE COALESCE(personal_discount_percent, 0) > 0)::int AS personal_discount
       FROM clients
     `);
     const row = result.rows[0];
     res.json({
       total: row.total,
       gold: row.gold,
-      standart: row.standart
+      silver: row.silver,
+      standart: row.standart,
+      personalDiscount: row.personal_discount
     });
   } catch (error) {
     console.error('Ошибка получения статистики клиентов:', error);
@@ -464,15 +461,15 @@ app.post('/api/clients', verifyAccessToken, async (req, res) => {
 
     const client = clientResult.rows[0];
 
-    // Расчёт скидки: персональная % + GOLD 10% (если есть), не больше 100%; на первую покупку нового клиента часть GOLD не даём
+    // Расчёт скидки: персональная % + уровень (silver 5%, gold 10%); на первую покупку нового клиента часть уровня не даём
     const discount = getPurchaseDiscountPercent(client, price, { isNewClientFirstPurchase: true });
     const employeeDiscount = parseFloat(req.body.employeeDiscount || 0);
     let finalAmount = priceAfterPercentDiscount(price, discount);
     finalAmount = Math.max(0, finalAmount - employeeDiscount);
 
     const newTotal = Number.parseFloat(client.total_spent) + Number.parseFloat(price);
-    // Статус GOLD: общая сумма всех заказов >= 500
-    const newStatus = newTotal >= 500 ? 'gold' : 'standart';
+    // Статус по накопленной сумме: standart / silver / gold
+    const newStatus = statusFromTotalSpent(newTotal);
     await pool.query(
       'UPDATE clients SET total_spent = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
       [newTotal, newStatus, client.id]
@@ -565,13 +562,13 @@ app.post('/api/clients/:id/purchase', verifyAccessToken, async (req, res) => {
     // Расчет новой общей суммы (только сумма, уже учтённая в БД)
     const newTotal = currentTotal + priceFloat;
 
-    const newStatus = newTotal >= 500 ? 'gold' : (clientData.status || 'standart');
+    const newStatus = statusFromTotalSpent(newTotal);
     const discount = getPurchaseDiscountPercent(clientData, priceFloat, {});
     const employeeDiscount = parseFloat(req.body.employeeDiscount || 0);
     let finalAmount = priceAfterPercentDiscount(priceFloat, discount);
     finalAmount = Math.max(0, finalAmount - employeeDiscount);
 
-    // Обновление клиента: total_spent и статус (gold при сумме >= 500)
+    // Обновление клиента: total_spent и статус (standart / silver / gold)
     await dbClient.query(
       'UPDATE clients SET total_spent = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
       [newTotal, newStatus, clientId]
@@ -673,7 +670,7 @@ app.post('/api/clients/:id/account-credit', verifyAccessToken, async (req, res) 
     const clientData = clientResult.rows[0];
     const currentTotal = parseFloat(clientData.total_spent);
     const newTotal = currentTotal + amount;
-    const newStatus = newTotal >= 500 ? 'gold' : (clientData.status || 'standart');
+    const newStatus = statusFromTotalSpent(newTotal);
 
     await dbClient.query(
       'UPDATE clients SET total_spent = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
@@ -2313,7 +2310,7 @@ app.post('/api/purchases/clear-history/:ticketId/cancel', verifyAccessToken, req
 });
 
 // Получение активных тикетов
-app.get('/api/purchases/clear-history/tickets', verifyAccessToken, async (req, res) => {
+app.get('/api/purchases/clear-history/tickets', verifyAccessToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM deletion_tickets 

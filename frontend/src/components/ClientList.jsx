@@ -6,14 +6,16 @@ import { clientService } from '../services/clientService'
 import Stats from './Stats'
 import { formatMinskDateTime } from '../utils/dateTime'
 import { normalizeMiddleNameForDisplay, normalizeClientIdForDisplay } from '../utils/clientDisplay'
+import { isAdminUser } from '../utils/userDisplay'
 import EditClientModal from './EditClientModal'
+import ClientStatusChip from './ClientStatusChip'
 import LoadingIndicator from './LoadingIndicator'
 import { TEA_ICON_SRC } from '../config/branding'
 import './ClientList.css'
 
 const ClientList = () => {
   const { user, refreshAccessToken } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = isAdminUser(user)
   // Загружаем сохраненный поисковый запрос из localStorage
   const [page, setPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState(() => {
@@ -101,6 +103,7 @@ const ClientList = () => {
 
   // Функция для экспорта в CSV (экспортирует все клиенты, не только текущую страницу)
   const exportToCSV = async () => {
+    if (!isAdmin) return
     try {
       // Загружаем все клиенты для экспорта (без пагинации)
       const allClientsData = await clientService.getAll({ page: 1, limit: 10000, search: debouncedSearchQuery })
@@ -390,11 +393,7 @@ const ClientList = () => {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => {
-                const isGold = client.status === 'gold'
-                const statusText = client.status ? client.status.toUpperCase() : ''
-
-                return (
+              {clients.map((client) => (
                   <tr
                     key={client.id}
                     className="clickable-row"
@@ -418,9 +417,11 @@ const ClientList = () => {
                       {normalizeClientIdForDisplay(client.client_id)}
                     </td>
                     <td>
-                      <span className={`status-chip ${client.status}`} data-label="Статус">
-                        {statusText}
-                      </span>
+                      <ClientStatusChip
+                        status={client.status}
+                        personalDiscount={client.personal_discount_percent}
+                        dataLabel="Статус"
+                      />
                     </td>
                     <td className="num mono" data-label="Сумма">{Number.parseFloat(client.total_spent || 0).toFixed(2)} BYN</td>
                     <td className="date-cell" data-label="Дата">{formatMinskDateTime(client.created_at)}</td>
@@ -439,8 +440,7 @@ const ClientList = () => {
                       </button>
                     </td>
                   </tr>
-                )
-              })}
+                ))}
             </tbody>
           </table>
         </div>

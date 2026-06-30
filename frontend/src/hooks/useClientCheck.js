@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { clientService } from '../services/clientService'
 import { useAuth } from '../contexts/AuthContext'
+import { buildPurchaseDiscountInfo } from '../utils/clientDiscount'
 
 export const useClientCheck = (clientId, price) => {
   const [clientInfo, setClientInfo] = useState(null)
@@ -17,17 +18,14 @@ export const useClientCheck = (clientId, price) => {
 
     const checkClient = async () => {
       try {
-        // Отменяем предыдущий запрос
         if (abortControllerRef.current) {
           abortControllerRef.current.abort()
         }
         abortControllerRef.current = new AbortController()
 
-        // Проверяем кэш
         if (cacheRef.current.has(clientId)) {
           const cached = cacheRef.current.get(clientId)
           const age = Date.now() - cached.timestamp
-          // Используем кэш, если данные свежие (< 3 секунд)
           if (age < 3000) {
             setClientInfo(cached.data)
             return
@@ -37,10 +35,8 @@ export const useClientCheck = (clientId, price) => {
         setLoading(true)
         const client = await clientService.getById(clientId)
         
-        // Обновляем состояние плавно
         requestAnimationFrame(() => {
           setClientInfo(client)
-          // Сохраняем в кэш
           cacheRef.current.set(clientId, {
             data: client,
             timestamp: Date.now()
@@ -70,21 +66,7 @@ export const useClientCheck = (clientId, price) => {
 
   const calculateDiscount = () => {
     if (!price || price <= 0) return null
-
-    // Скидка только при статусе GOLD (GOLD даётся при общей сумме заказов >= 500)
-    const status = clientInfo?.status || 'standart'
-    const hasDiscount = status === 'gold'
-
-    if (hasDiscount) {
-      return {
-        hasDiscount: true,
-        originalPrice: price,
-        finalPrice: price * 0.9,
-        discount: 10
-      }
-    }
-
-    return null
+    return buildPurchaseDiscountInfo(clientInfo, price)
   }
 
   return {

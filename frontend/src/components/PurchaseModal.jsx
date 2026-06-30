@@ -9,6 +9,12 @@ import PaymentMethodModal from './PaymentMethodModal'
 import { clientService } from '../services/clientService'
 import { normalizeMiddleNameForDisplay, normalizeClientIdForDisplay } from '../utils/clientDisplay'
 import { buildPurchaseDiscountInfo } from '../utils/clientDiscount'
+import {
+  applyEmployeeDiscount,
+  calcEmployeeDiscountAmount,
+  formatEmployeeDiscountBadge,
+  formatEmployeeDiscountHint
+} from '../utils/employeeDiscount'
 import './PurchaseModal.css'
 
 const PurchaseModal = ({ client, onClose }) => {
@@ -52,8 +58,6 @@ const PurchaseModal = ({ client, onClose }) => {
     return buildPurchaseDiscountInfo(localClient, p)
   }, [price, productsTotal, localClient])
 
-  const employeeDiscountAmount = employeeDiscount ? 1 : 0
-
   const baseOrderAmount = useMemo(() => {
     const p = productsTotal > 0 ? productsTotal : Number.parseFloat(price)
     return Number.isFinite(p) && p > 0 ? p : null
@@ -64,8 +68,12 @@ const PurchaseModal = ({ client, onClose }) => {
     return discountInfo ? discountInfo.finalPrice : baseOrderAmount
   }, [baseOrderAmount, discountInfo])
 
+  const employeeDiscountAmount = calcEmployeeDiscountAmount(baseFinalBeforeEmployee, employeeDiscount)
+
   const displayFinalForPay =
-    baseFinalBeforeEmployee != null ? Math.max(0, baseFinalBeforeEmployee - employeeDiscountAmount) : null
+    baseFinalBeforeEmployee != null
+      ? applyEmployeeDiscount(baseFinalBeforeEmployee, employeeDiscount).finalAmount
+      : null
 
   const handleProductsChange = (cart, total) => {
     setSelectedProducts(cart)
@@ -119,7 +127,7 @@ const PurchaseModal = ({ client, onClose }) => {
     }
 
     const baseFinal = discountInfo ? discountInfo.finalPrice : p
-    const finalAmount = Math.max(0, baseFinal - employeeDiscountAmount)
+    const { amount: empAmount, finalAmount } = applyEmployeeDiscount(baseFinal, employeeDiscount)
 
     const items = Object.values(selectedProducts).map(item => ({
       productId: item.product.id,
@@ -127,7 +135,7 @@ const PurchaseModal = ({ client, onClose }) => {
       productPrice: item.product.price,
       quantity: item.quantity
     }))
-    setPendingPurchaseData({ price: p, items, finalAmount, employeeDiscount: employeeDiscountAmount })
+    setPendingPurchaseData({ price: p, items, finalAmount, employeeDiscount: empAmount })
     setShowPaymentModal(true)
   }
 
@@ -259,7 +267,7 @@ const PurchaseModal = ({ client, onClose }) => {
                       <div className="price-final">
                         {displayFinalForPay != null ? displayFinalForPay.toFixed(2) : discountInfo.finalPrice.toFixed(2)} BYN
                         {employeeDiscountAmount > 0 && (
-                          <span className="employee-discount-badge"> (−1 BYN)</span>
+                          <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
                         )}
                       </div>
                       <div className="price-saved">Экономия: {discountInfo.savedAmount.toFixed(2)} BYN</div>
@@ -273,7 +281,7 @@ const PurchaseModal = ({ client, onClose }) => {
                       <div className="price-final">
                         {displayFinalForPay != null ? displayFinalForPay.toFixed(2) : baseOrderAmount.toFixed(2)} BYN
                         {employeeDiscountAmount > 0 && (
-                          <span className="employee-discount-badge"> (−1 BYN)</span>
+                          <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
                         )}
                       </div>
                     </div>
@@ -288,7 +296,7 @@ const PurchaseModal = ({ client, onClose }) => {
                     disabled={loading}
                   />
                   <span>Сотрудник</span>
-                  {employeeDiscount && <span className="employee-checkbox-hint">(−1 BYN к заказу)</span>}
+                  {employeeDiscount && <span className="employee-checkbox-hint">{formatEmployeeDiscountHint()}</span>}
                 </label>
 
                 <div className="modal-actions">
@@ -307,7 +315,7 @@ const PurchaseModal = ({ client, onClose }) => {
         {tab === 'credit' && (
           <div className="purchase-credit-panel">
             <p className="purchase-credit-desc">
-              Укажите сумму в BYN. Она будет добавлена к накопительной сумме покупок клиента; при сумме от 500 BYN возможен статус GOLD.
+              Укажите сумму в BYN. Она будет добавлена к накопительной сумме покупок клиента; от 250 BYN — Silver (5%), от 500 BYN — Gold (10%).
             </p>
             <form onSubmit={handleCreditSubmit}>
               <div className="form-row one-col">

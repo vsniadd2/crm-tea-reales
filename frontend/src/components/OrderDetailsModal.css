@@ -757,6 +757,11 @@
   color: #374151;
 }
 
+.status-chip.silver {
+  background: rgba(148, 163, 184, 0.18);
+  color: #475569;
+}
+
 .status-chip.gold {
   background: #fef3c7;
   color: #92400e;

@@ -1,4 +1,12 @@
-/** Скидки клиента: персональная % и GOLD 10% суммируются, итог не больше 100%. */
+/** Скидки клиента: персональная % + уровень лояльности (silver 5%, gold 10%), итог ≤ 100%. */
+
+import {
+  TIER_GOLD_MIN,
+  TIER_SILVER_MIN,
+  loyaltyDiscountPercentForStatus
+} from './clientTier'
+
+export { loyaltyDiscountPercentForStatus, formatClientStatus } from './clientTier'
 
 export function clampDiscountPercent(v) {
   const n = Number.parseFloat(v)
@@ -10,20 +18,20 @@ export function personalDiscountPercent(client) {
   return clampDiscountPercent(client?.personal_discount_percent)
 }
 
-/** GOLD 10% на эту покупку (как на бэкенде для существующего клиента). */
-export function goldDiscountPercentForPurchase(client, orderAmount) {
+/** Скидка уровня на эту покупку (как на бэкенде для существующего клиента). */
+export function tierDiscountPercentForPurchase(client, orderAmount) {
   if (!client) return 0
   const total = Number.parseFloat(client.total_spent) || 0
   const price = Number.parseFloat(orderAmount) || 0
   const newTotal = total + price
-  const alreadyGold = (client.status || 'standart') === 'gold'
-  if (newTotal >= 500 || alreadyGold) return 10
+  const status = (client.status || 'standart').toLowerCase()
+  if (newTotal >= TIER_GOLD_MIN || status === 'gold') return 10
+  if (newTotal >= TIER_SILVER_MIN || status === 'silver') return 5
   return 0
 }
 
 export function effectiveDiscountPercentForPurchase(client, orderAmount) {
-  const sum =
-    personalDiscountPercent(client) + goldDiscountPercentForPurchase(client, orderAmount)
+  const sum = personalDiscountPercent(client) + tierDiscountPercentForPurchase(client, orderAmount)
   return Math.min(100, sum)
 }
 
@@ -49,12 +57,12 @@ export function buildPurchaseDiscountInfo(client, orderAmount) {
   }
 }
 
-/** Замена заказа: только текущий статус и персональная (без пересчёта порога 500). */
+/** Замена заказа: текущий статус и персональная (без пересчёта порогов). */
 export function replacementEffectiveDiscountPercent(order) {
   if (!order || order.client_id == null) return 0
   const personal = clampDiscountPercent(order.client_personal_discount)
-  const gold = (order.client_status || 'standart') === 'gold' ? 10 : 0
-  return Math.min(100, personal + gold)
+  const tier = loyaltyDiscountPercentForStatus(order.client_status)
+  return Math.min(100, personal + tier)
 }
 
 export function buildReplacementDiscountInfo(order, orderAmount) {

@@ -25,17 +25,17 @@
     --primary-hover: #2d2d2d;
     --primary-light: #f7f7f7;
     
-    /* Градиент для акцентов (персиковый → лавандовый) */
+    /* Градиент для акцентов (персиковый → зелёный) */
     --gradient-start: #ffe5d9;
-    --gradient-end: #e8d5ff;
+    --gradient-end: #e3f0df;
     --gradient: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
     
-    /* Фиолетовые акценты для интерактивных элементов */
-    --accent-purple: #8b5cf6;
-    --accent-purple-light: rgba(139, 92, 246, 0.1);
+    /* Зелёные акценты для интерактивных элементов (как login-brand-mark) */
+    --accent-purple: #4d7a42;
+    --accent-purple-light: rgba(77, 122, 66, 0.1);
     
     /* Фокус и тени */
-    --primary-focus: rgba(139, 92, 246, 0.15);
+    --primary-focus: rgba(77, 122, 66, 0.15);
     --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.08);
     --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.06);
     --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.04);
@@ -116,11 +116,47 @@ input[type="checkbox"]:disabled {
     cursor: not-allowed;
 }
 
+/* Кастомный календарь — см. DateInput.css; ширина для stats */
+.stats-date-input.date-input-trigger {
+    min-width: 160px;
+}
+
 /* Убираем синюю обводку/тень с кнопок — оставляем только на полях ввода */
 button:focus,
 button:focus-visible {
     outline: none;
     box-shadow: none;
+}
+
+/* Recharts — без синей рамки при клике/тапе на графиках */
+.donut-chart-container,
+.donut-chart-container .recharts-wrapper,
+.donut-chart-container .recharts-surface,
+.donut-chart-container svg,
+.donut-chart-container path,
+.donut-chart-container .recharts-sector,
+.donut-chart-container .recharts-layer {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.donut-chart-container:focus,
+.donut-chart-container:focus-within,
+.donut-chart-container .recharts-wrapper:focus,
+.donut-chart-container .recharts-wrapper:focus-visible,
+.donut-chart-container .recharts-surface:focus,
+.donut-chart-container .recharts-surface:focus-visible,
+.donut-chart-container svg:focus,
+.donut-chart-container svg:focus-visible,
+.donut-chart-container path:focus,
+.donut-chart-container path:focus-visible,
+.donut-chart-container .recharts-sector:focus,
+.donut-chart-container .recharts-sector:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.donut-chart-container .recharts-active-shape {
+    outline: none !important;
 }
 
 /* ========================================

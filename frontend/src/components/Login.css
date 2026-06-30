@@ -2,7 +2,7 @@
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #fef5f0 0%, #f5f0ff 100%);
+    background: linear-gradient(135deg, #fef5f0 0%, #eef7eb 100%);
 }
 
 .login-page {

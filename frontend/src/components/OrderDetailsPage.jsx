@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { orderStatsService } from '../services/orderStatsService'
 import { useNotification } from './NotificationProvider'
+import DateInput from './DateInput'
 import {
   PieChart,
   Pie,
@@ -72,7 +73,7 @@ const OrderDetailsPage = () => {
         : `${new Date(dateFrom).toLocaleDateString('ru-RU')} – ${new Date(dateTo).toLocaleDateString('ru-RU')}`)
     : null
 
-  const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
+  const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#4d7a42', '#ec4899', '#14b8a6', '#f97316']
 
   const renderPieLabel = (props) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, percent, percentage } = props
@@ -116,7 +117,7 @@ const OrderDetailsPage = () => {
         <div className="day-top-products-content">
           <div className="donut-chart-container">
             <ResponsiveContainer width="100%" height={350}>
-              <PieChart>
+              <PieChart accessibilityLayer={false}>
                 <Pie
                   data={donutData}
                   cx="50%"
@@ -196,21 +197,19 @@ const OrderDetailsPage = () => {
         <div className="order-details-filters">
           <div className="filter-group">
             <label htmlFor="dateFrom">От:</label>
-            <input
+            <DateInput
               id="dateFrom"
-              type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={setDateFrom}
               className="date-input"
             />
           </div>
           <div className="filter-group">
             <label htmlFor="dateTo">До:</label>
-            <input
+            <DateInput
               id="dateTo"
-              type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={setDateTo}
               className="date-input"
             />
           </div>

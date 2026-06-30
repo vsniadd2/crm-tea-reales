@@ -12,8 +12,15 @@ import {
   buildPurchaseDiscountInfo,
   effectiveDiscountPercentForPurchase,
   personalDiscountPercent,
-  priceAfterPercentDiscount
+  priceAfterPercentDiscount,
+  formatClientStatus
 } from '../utils/clientDiscount'
+import {
+  applyEmployeeDiscount,
+  calcEmployeeDiscountAmount,
+  formatEmployeeDiscountBadge,
+  formatEmployeeDiscountHint
+} from '../utils/employeeDiscount'
 import { withAuthRetry } from '../utils/withAuthRetry'
 import './NewClientPage.css'
 
@@ -189,8 +196,19 @@ const NewClientPage = () => {
     }
   }
 
-  // Скидка сотрудника: -1 BYN к заказу при включённой галочке
-  const employeeDiscountAmount = employeeDiscount ? 1 : 0
+  // Скидка сотрудника: 10% от итоговой стоимости заказа
+  const baseFinalBeforeEmployee = useMemo(() => {
+    const price = productsTotal > 0 ? productsTotal : (Number.parseFloat(formData.price) || 0)
+    if (price <= 0) return null
+    if (discountInfo) return discountInfo.finalPrice
+    return price
+  }, [productsTotal, formData.price, discountInfo])
+
+  const employeeDiscountAmount = calcEmployeeDiscountAmount(baseFinalBeforeEmployee, employeeDiscount)
+
+  const displayFinalForPay = baseFinalBeforeEmployee != null
+    ? applyEmployeeDiscount(baseFinalBeforeEmployee, employeeDiscount).finalAmount
+    : null
 
   const handleProductsChange = useCallback((cart, total) => {
     setSelectedProducts(cart)
@@ -416,8 +434,8 @@ const NewClientPage = () => {
           productPrice: item.product.price,
           quantity: item.quantity
         }))
-        const finalAmount = Math.max(0, price - employeeDiscountAmount)
-        setPendingOrderData({ type: 'anonymous', price, items, employeeDiscount: employeeDiscountAmount, finalAmount })
+        const { amount: empAmount, finalAmount } = applyEmployeeDiscount(price, employeeDiscount)
+        setPendingOrderData({ type: 'anonymous', price, items, employeeDiscount: empAmount, finalAmount })
         setShowPaymentModal(true)
         return
       }
@@ -450,13 +468,13 @@ const NewClientPage = () => {
                 quantity: item.quantity
               }))
               const afterDisc = priceAfterPercentDiscount(price, discPct)
-              const finalAmount = Math.max(0, afterDisc - employeeDiscountAmount)
+              const { amount: empAmount, finalAmount } = applyEmployeeDiscount(afterDisc, employeeDiscount)
               setPendingOrderData({ 
                 type: 'existing', 
                 clientId: existingClient.id, 
                 price, 
                 items,
-                employeeDiscount: employeeDiscountAmount,
+                employeeDiscount: empAmount,
                 finalAmount
               })
               setShowPaymentModal(true)
@@ -486,7 +504,7 @@ const NewClientPage = () => {
         quantity: item.quantity
       }))
       
-      const finalAmount = Math.max(0, finalPrice - employeeDiscountAmount)
+      const { amount: empAmount, finalAmount } = applyEmployeeDiscount(finalPrice, employeeDiscount)
       setPendingOrderData({
         type: 'new',
         firstName: formData.firstName,
@@ -495,7 +513,7 @@ const NewClientPage = () => {
         clientId: formData.clientId,
         price: finalPrice,
         items,
-        employeeDiscount: employeeDiscountAmount,
+        employeeDiscount: empAmount,
         finalAmount
       })
       setShowPaymentModal(true)
@@ -689,7 +707,7 @@ const NewClientPage = () => {
                     ✓ Клиент найден: {checkedClient.first_name} {checkedClient.last_name}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>
-                    Статус: {checkedClient.status === 'gold' ? 'GOLD' : 'STANDART'} | 
+                    Статус: {formatClientStatus(checkedClient.status)} | 
                     Потрачено: {parseFloat(checkedClient.total_spent || 0).toFixed(2)} BYN
                     {personalDiscountPercent(checkedClient) > 0 && (
                       <> | Персональная скидка: {personalDiscountPercent(checkedClient)}%</>
@@ -711,9 +729,9 @@ const NewClientPage = () => {
                           {discountInfo.originalPrice.toFixed(2)} BYN
                         </div>
                         <div className="price-final">
-                          {(discountInfo.finalPrice - employeeDiscountAmount).toFixed(2)} BYN
+                          {(displayFinalForPay ?? discountInfo.finalPrice).toFixed(2)} BYN
                           {employeeDiscountAmount > 0 && (
-                            <span className="employee-discount-badge"> (−1 BYN)</span>
+                            <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
                           )}
                         </div>
                       </div>
@@ -721,9 +739,9 @@ const NewClientPage = () => {
                   ) : (
                       <div className="price-preview">
                         <div className="price-final">
-                          {((productsTotal > 0 ? productsTotal : parseFloat(formData.price) || 0) - employeeDiscountAmount).toFixed(2)} BYN
+                          {(displayFinalForPay ?? (productsTotal > 0 ? productsTotal : Number.parseFloat(formData.price) || 0)).toFixed(2)} BYN
                           {employeeDiscountAmount > 0 && (
-                            <span className="employee-discount-badge"> (−1 BYN)</span>
+                            <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
                           )}
                         </div>
                       </div>
@@ -739,7 +757,7 @@ const NewClientPage = () => {
                   disabled={loading}
                 />
                 <span>Сотрудник</span>
-                {employeeDiscount && <span className="employee-checkbox-hint">(−1 BYN к заказу)</span>}
+                {employeeDiscount && <span className="employee-checkbox-hint">{formatEmployeeDiscountHint()}</span>}
               </label>
 
               <div className="new-client-actions">

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNotification } from './NotificationProvider'
 import { useDataRefresh } from '../contexts/DataRefreshContext'
 import ProductSelector from './ProductSelector'
+import ClientStatusChip from './ClientStatusChip'
 import { purchaseHistoryService } from '../services/purchaseHistoryService'
 import { normalizeMiddleNameForDisplay } from '../utils/clientDisplay'
 import { buildReplacementDiscountInfo } from '../utils/clientDiscount'
@@ -114,9 +115,10 @@ const ReplacementOrderModal = ({ order, onClose, onSuccess }) => {
           </div>
           {!isAnonymous && (
             <div className="replacement-summary-status">
-              <span className={`status-chip ${order.client_status || 'standart'}`}>
-                {(order.client_status || 'standart').toUpperCase()}
-              </span>
+              <ClientStatusChip
+                status={order.client_status}
+                personalDiscount={order.client_personal_discount}
+              />
             </div>
           )}
         </div>

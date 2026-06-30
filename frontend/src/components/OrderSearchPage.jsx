@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from './NotificationProvider'
+import DateInput from './DateInput'
 import { API_URL, getAuthHeaders } from '../config/api'
 import './OrderSearchPage.css'
 
@@ -91,20 +92,18 @@ const OrderSearchPage = () => {
           <div className="order-search-form-row">
             <div className="order-search-form-group">
               <label>Начало периода *</label>
-              <input
-                type="date"
+              <DateInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
+                onChange={setStartDate}
+                className="date-input"
               />
             </div>
             <div className="order-search-form-group">
               <label>Конец периода *</label>
-              <input
-                type="date"
+              <DateInput
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
+                onChange={setEndDate}
+                className="date-input"
               />
             </div>
           </div>

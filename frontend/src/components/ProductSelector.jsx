@@ -187,9 +187,16 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   const DEFAULT_GROUP_ICON = '/img/tea-cup-svgrepo-com.svg'
   const getCategoryIcon = (categoryId, categoryName, categoryIcon) => {
     if (categoryIcon && categoryIcon.trim()) {
-      const src = categoryIcon.startsWith('/') ? categoryIcon : `/${categoryIcon.replace(/^\/+/, '')}`
+      const trimmed = categoryIcon.trim()
+      const isUrl = /^https?:\/\//i.test(trimmed)
+      const isLocalPath = trimmed.startsWith('/')
+      if (isUrl || isLocalPath) {
+        return (
+          <img src={trimmed} alt="" style={{ width: '40px', height: '40px' }} />
+        )
+      }
       return (
-        <img src={src} alt="" style={{ width: '40px', height: '40px' }} />
+        <span className="category-icon-emoji" aria-hidden="true">{trimmed}</span>
       )
     }
     const name = (categoryName || '').toUpperCase()
