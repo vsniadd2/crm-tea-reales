@@ -2,7 +2,24 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { getProductsTree } from '../services/productsService'
 import { useAuth } from '../contexts/AuthContext'
 import { useDataRefresh } from '../contexts/DataRefreshContext'
+import {
+  getBaseWeightGrams,
+  getLineUnitPrice,
+  getCartLineTotal,
+  formatProductPriceLabel
+} from '../utils/weightPricing'
 import './ProductSelector.css'
+
+function createCartEntry(product) {
+  const baseGrams = getBaseWeightGrams(product)
+  const grams = baseGrams ?? null
+  return {
+    product,
+    quantity: 1,
+    grams,
+    unitPrice: getLineUnitPrice(product, grams)
+  }
+}
 
 const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   const { refreshAccessToken } = useAuth()
@@ -99,14 +116,70 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
     setCart(prev => {
       const newCart = { ...prev }
       if (newCart[product.id]) {
-        newCart[product.id].quantity += 1
-      } else {
         newCart[product.id] = {
-          product,
-          quantity: 1
+          ...newCart[product.id],
+          quantity: newCart[product.id].quantity + 1
         }
+      } else {
+        newCart[product.id] = createCartEntry(product)
       }
       return newCart
+    })
+  }
+
+  const handleGramsChange = (productId, rawValue) => {
+    const digits = String(rawValue).replace(/\D/g, '')
+    setCart(prev => {
+      const item = prev[productId]
+      if (!item) return prev
+      const baseGrams = getBaseWeightGrams(item.product)
+      if (!baseGrams) return prev
+
+      if (digits === '') {
+        return {
+          ...prev,
+          [productId]: {
+            ...item,
+            grams: null,
+            gramsDraft: '',
+            unitPrice: getLineUnitPrice(item.product, baseGrams)
+          }
+        }
+      }
+
+      const grams = parseInt(digits, 10)
+      if (!Number.isFinite(grams) || grams <= 0) return prev
+      return {
+        ...prev,
+        [productId]: {
+          ...item,
+          grams,
+          gramsDraft: undefined,
+          unitPrice: getLineUnitPrice(item.product, grams)
+        }
+      }
+    })
+  }
+
+  const handleGramsBlur = (productId) => {
+    setCart(prev => {
+      const item = prev[productId]
+      if (!item) return prev
+      const baseGrams = getBaseWeightGrams(item.product)
+      if (!baseGrams) return prev
+      const grams = item.grams ?? baseGrams
+      if (grams === item.grams && item.gramsDraft === undefined && item.unitPrice === getLineUnitPrice(item.product, grams)) {
+        return prev
+      }
+      return {
+        ...prev,
+        [productId]: {
+          ...item,
+          grams,
+          gramsDraft: undefined,
+          unitPrice: getLineUnitPrice(item.product, grams)
+        }
+      }
     })
   }
 
@@ -126,9 +199,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
 
   // Обновляем родительский компонент через useEffect, чтобы избежать обновления во время рендеринга
   useEffect(() => {
-    const total = Object.values(cart).reduce((sum, item) => {
-      return sum + (item.product.price * item.quantity)
-    }, 0)
+    const total = Object.values(cart).reduce((sum, item) => sum + getCartLineTotal(item), 0)
     if (onProductsChange) {
       onProductsChange(cart, total)
     }
@@ -181,7 +252,65 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   }
 
   const cartItems = Object.values(cart)
-  const cartTotal = cartItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+  const cartTotal = cartItems.reduce((sum, item) => sum + getCartLineTotal(item), 0)
+
+  const renderCartSummary = () => {
+    if (cartItems.length === 0) return null
+    return (
+      <div className="cart-summary">
+        <div className="cart-items">
+          {cartItems.map(item => {
+            const baseGrams = getBaseWeightGrams(item.product)
+            const displayGrams = item.gramsDraft !== undefined
+              ? item.gramsDraft
+              : String(item.grams ?? baseGrams ?? '')
+            return (
+            <div key={item.product.id} className="cart-item">
+              <span className="cart-item-name">{item.product.name}</span>
+              {baseGrams != null && (
+                <div className="cart-item-grams">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    className="cart-item-grams-input"
+                    value={displayGrams}
+                    onChange={(e) => handleGramsChange(item.product.id, e.target.value)}
+                    onBlur={() => handleGramsBlur(item.product.id)}
+                    aria-label={`Граммовка: ${item.product.name}`}
+                  />
+                  <span className="cart-item-grams-label">г</span>
+                </div>
+              )}
+              <div className="cart-item-controls">
+                <button
+                  type="button"
+                  className="cart-btn-minus"
+                  onClick={() => handleRemoveProduct(item.product.id)}
+                >
+                  −
+                </button>
+                <span className="cart-item-quantity">{item.quantity}</span>
+                <button
+                  type="button"
+                  className="cart-btn-plus"
+                  onClick={() => handleAddProduct(item.product)}
+                >
+                  +
+                </button>
+                <span className="cart-item-price">
+                  {getCartLineTotal(item).toFixed(2)} BYN
+                </span>
+              </div>
+            </div>
+          )})}
+        </div>
+        <div className="cart-total">
+          Итого: <strong>{cartTotal.toFixed(2)} BYN</strong>
+        </div>
+      </div>
+    )
+  }
 
   // Функция для получения иконки категории: приоритет у icon из БД, иначе по названию, по умолчанию — чашка чая
   const DEFAULT_GROUP_ICON = '/img/tea-cup-svgrepo-com.svg'
@@ -192,7 +321,15 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
       const isLocalPath = trimmed.startsWith('/')
       if (isUrl || isLocalPath) {
         return (
-          <img src={trimmed} alt="" style={{ width: '40px', height: '40px' }} />
+          <img
+            src={trimmed}
+            alt=""
+            style={{ width: '40px', height: '40px' }}
+            onError={(e) => {
+              e.currentTarget.onerror = null
+              e.currentTarget.src = DEFAULT_GROUP_ICON
+            }}
+          />
         )
       }
       return (
@@ -299,7 +436,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
                         {meta && (
                           <div className="product-meta">{meta.categoryName} → {meta.subcategoryName}</div>
                         )}
-                        <div className="product-price">{product.price.toFixed(2)} BYN</div>
+                        <div className="product-price">{formatProductPriceLabel(product)}</div>
                       </div>
                     </div>
                     <div className="product-actions">
@@ -336,40 +473,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
           ))}
           </div>
         )}
-        {cartItems.length > 0 && (
-          <div className="cart-summary">
-            <div className="cart-items">
-              {cartItems.map(item => (
-                <div key={item.product.id} className="cart-item">
-                  <span className="cart-item-name">{item.product.name}</span>
-                  <div className="cart-item-controls">
-                    <button
-                      type="button"
-                      className="cart-btn-minus"
-                      onClick={() => handleRemoveProduct(item.product.id)}
-                    >
-                      −
-                    </button>
-                    <span className="cart-item-quantity">{item.quantity}</span>
-                    <button
-                      type="button"
-                      className="cart-btn-plus"
-                      onClick={() => handleAddProduct(item.product)}
-                    >
-                      +
-                    </button>
-                    <span className="cart-item-price">
-                      {(item.product.price * item.quantity).toFixed(2)} BYN
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="cart-total">
-              Итого: <strong>{cartTotal.toFixed(2)} BYN</strong>
-            </div>
-          </div>
-        )}
+        {renderCartSummary()}
       </div>
     )
   }
@@ -408,40 +512,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
             )
           })}
         </div>
-        {cartItems.length > 0 && (
-          <div className="cart-summary">
-            <div className="cart-items">
-              {cartItems.map(item => (
-                <div key={item.product.id} className="cart-item">
-                  <span className="cart-item-name">{item.product.name}</span>
-                  <div className="cart-item-controls">
-                    <button
-                      type="button"
-                      className="cart-btn-minus"
-                      onClick={() => handleRemoveProduct(item.product.id)}
-                    >
-                      −
-                    </button>
-                    <span className="cart-item-quantity">{item.quantity}</span>
-                    <button
-                      type="button"
-                      className="cart-btn-plus"
-                      onClick={() => handleAddProduct(item.product)}
-                    >
-                      +
-                    </button>
-                    <span className="cart-item-price">
-                      {(item.product.price * item.quantity).toFixed(2)} BYN
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="cart-total">
-              Итого: <strong>{cartTotal.toFixed(2)} BYN</strong>
-            </div>
-          </div>
-        )}
+        {renderCartSummary()}
       </div>
     )
   }
@@ -512,7 +583,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
                 {meta && (
                   <div className="product-meta">{(meta.categoryName)} → {meta.subcategoryName}</div>
                 )}
-                <div className="product-price">{product.price.toFixed(2)} BYN</div>
+                <div className="product-price">{formatProductPriceLabel(product)}</div>
               </div>
             </div>
             <div className="product-actions">
@@ -548,40 +619,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
           )
         })}
       </div>
-      {cartItems.length > 0 && (
-        <div className="cart-summary">
-          <div className="cart-items">
-            {cartItems.map(item => (
-              <div key={item.product.id} className="cart-item">
-                <span className="cart-item-name">{item.product.name}</span>
-                <div className="cart-item-controls">
-                  <button
-                    type="button"
-                    className="cart-btn-minus"
-                    onClick={() => handleRemoveProduct(item.product.id)}
-                  >
-                    −
-                  </button>
-                  <span className="cart-item-quantity">{item.quantity}</span>
-                  <button
-                    type="button"
-                    className="cart-btn-plus"
-                    onClick={() => handleAddProduct(item.product)}
-                  >
-                    +
-                  </button>
-                  <span className="cart-item-price">
-                    {(item.product.price * item.quantity).toFixed(2)} BYN
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="cart-total">
-            Итого: <strong>{cartTotal.toFixed(2)} BYN</strong>
-          </div>
-        </div>
-      )}
+      {renderCartSummary()}
     </div>
   )
 }

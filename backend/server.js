@@ -18,6 +18,44 @@ const CREATED_AT_MSK_SQL = "to_char(t.created_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"+0
 const TRANSACTION_SELECT_MSK = `t.id, t.client_id, t.amount, t.discount, t.final_amount, ${CREATED_AT_MSK_SQL}, t.operation_type, t.replacement_of_transaction_id, t.payment_method, t.cash_part, t.card_part`;
 // Для таблицы clients (без алиаса)
 const CREATED_AT_MSK_CLIENT_SQL = "to_char(created_at, 'YYYY-MM-DD\"T\"HH24:MI:SS\"+03:00\"') as created_at";
+const TRANSACTION_ITEMS_SELECT = 'product_id, product_name, product_price, quantity, weight_grams';
+
+function parseTransactionItem(item) {
+  const weightRaw = item.weightGrams ?? item.weight_grams;
+  let weightGrams = null;
+  if (weightRaw != null && weightRaw !== '') {
+    const wg = parseInt(weightRaw, 10);
+    if (Number.isFinite(wg) && wg > 0) weightGrams = wg;
+  }
+  return {
+    productId: item.productId || item.product_id || '',
+    productName: item.productName || item.product_name || '',
+    productPrice: parseFloat(item.productPrice || item.product_price || 0),
+    quantity: parseInt(item.quantity || 1, 10),
+    weightGrams
+  };
+}
+
+async function insertTransactionItems(db, transactionId, items) {
+  if (!items || !Array.isArray(items) || items.length === 0) return;
+  for (const raw of items) {
+    const item = parseTransactionItem(raw);
+    await db.query(
+      `INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity, weight_grams)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [transactionId, item.productId, item.productName, item.productPrice, item.quantity, item.weightGrams]
+    );
+  }
+}
+
+function parseBaseWeightGrams(value) {
+  if (value === undefined || value === null || value === '') return { value: null };
+  const wg = parseInt(value, 10);
+  if (!Number.isFinite(wg) || wg <= 0) {
+    return { error: 'Граммовка должна быть положительным целым числом' };
+  }
+  return { value: wg };
+}
 
 // Точки продаж: admin и accessAllPoints — фильтр по query; user — только своя точка
 function canAccessAllPoints(user) {
@@ -82,11 +120,11 @@ app.use(cors({
   origin: '*',
   credentials: true
 }));
-// Лимит тела запроса (base64-картинки товаров; на товаре отдельно проверяем ≤ 5 МБ)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Лимит тела запроса (base64-картинки товаров; на товаре отдельно проверяем ≤ 2 МБ)
+app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ limit: '4mb', extended: true }));
 
-const MAX_PRODUCT_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PRODUCT_IMAGE_BYTES = 2 * 1024 * 1024;
 
 /** Примерный размер бинарных данных из data URL или строки base64 */
 function getApproxDecodedImageBytes(dataStr) {
@@ -103,7 +141,7 @@ function getApproxDecodedImageBytes(dataStr) {
 function validateProductImageSize(finalImageData) {
   if (!finalImageData) return null;
   if (getApproxDecodedImageBytes(finalImageData) > MAX_PRODUCT_IMAGE_BYTES) {
-    return 'Изображение превышает 5 МБ. Уменьшите файл или сожмите фото.';
+    return 'Изображение превышает 2 МБ. Уменьшите файл или сожмите фото.';
   }
   return null;
 }
@@ -498,22 +536,7 @@ app.post('/api/clients', verifyAccessToken, async (req, res) => {
     const transactionId = transactionResult.rows[0].id;
     
     // Сохранение товаров в транзакции, если они есть (при создании клиента с покупкой)
-    const items = req.body.items;
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        await pool.query(
-          `INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            transactionId,
-            item.productId || item.product_id || '',
-            item.productName || item.product_name || '',
-            parseFloat(item.productPrice || item.product_price || 0),
-            parseInt(item.quantity || 1, 10)
-          ]
-        );
-      }
-    }
+    await insertTransactionItems(pool, transactionId, req.body.items);
 
     res.json({
       client,
@@ -595,21 +618,7 @@ app.post('/api/clients/:id/purchase', verifyAccessToken, async (req, res) => {
     const transactionId = transactionResult.rows[0].id;
 
     // Сохранение товаров в транзакции, если они есть
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        await dbClient.query(
-          `INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            transactionId,
-            item.productId || item.product_id || '',
-            item.productName || item.product_name || '',
-            parseFloat(item.productPrice || item.product_price || 0),
-            parseInt(item.quantity || 1, 10)
-          ]
-        );
-      }
-    }
+    await insertTransactionItems(dbClient, transactionId, items);
 
     await dbClient.query('COMMIT');
 
@@ -737,21 +746,7 @@ app.post('/api/purchases/anonymous', verifyAccessToken, async (req, res) => {
 
     const transactionId = transactionResult.rows[0].id;
 
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        await pool.query(
-          `INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            transactionId,
-            item.productId || item.product_id || '',
-            item.productName || item.product_name || '',
-            parseFloat(item.productPrice || item.product_price || 0),
-            parseInt(item.quantity || 1, 10)
-          ]
-        );
-      }
-    }
+    await insertTransactionItems(pool, transactionId, items);
 
     res.json({
       success: true,
@@ -920,7 +915,7 @@ app.get('/api/purchases/payment-stats', verifyAccessToken, async (req, res) => {
   }
 });
 
-// Маршрут для получения статистики продаж по товарам (только напитки, исключая фасованный чай и посуду)
+// Маршрут для получения статистики продаж по всем товарам
 app.get('/api/orders/stats/products', verifyAccessToken, async (req, res) => {
   try {
     const dateFrom = req.query.dateFrom || null;
@@ -945,13 +940,6 @@ app.get('/api/orders/stats/products', verifyAccessToken, async (req, res) => {
         FROM transaction_items ti
         INNER JOIN transactions t ON ti.transaction_id = t.id
         WHERE COALESCE(t.operation_type, 'sale') != 'return'
-          AND (
-            ti.product_name NOT ILIKE '%пачка%'
-            AND ti.product_name NOT ILIKE '%турка%'
-            AND ti.product_name NOT ILIKE '%упаковка%'
-            AND ti.product_name NOT ILIKE '%чай фасованный%'
-            AND ti.product_name NOT ILIKE '%чай листовой%'
-          )
       ) s
       WHERE 1=1
     `;
@@ -1455,7 +1443,12 @@ app.get('/api/purchases', verifyAccessToken, async (req, res) => {
         c.last_name ILIKE $${paramIndex} OR
         c.middle_name ILIKE $${paramIndex} OR
         CONCAT(COALESCE(c.first_name,''), ' ', COALESCE(c.last_name,'')) ILIKE $${paramIndex} OR
-        CONCAT(COALESCE(c.last_name,''), ' ', COALESCE(c.first_name,'')) ILIKE $${paramIndex})
+        CONCAT(COALESCE(c.last_name,''), ' ', COALESCE(c.first_name,'')) ILIKE $${paramIndex} OR
+        c.client_id ILIKE $${paramIndex} OR
+        t.id::text ILIKE $${paramIndex} OR
+        to_char(t.created_at AT TIME ZONE 'Europe/Moscow', 'DD.MM.YYYY') ILIKE $${paramIndex} OR
+        to_char(t.created_at AT TIME ZONE 'Europe/Moscow', 'YYYY-MM-DD') ILIKE $${paramIndex} OR
+        to_char(t.created_at AT TIME ZONE 'Europe/Moscow', 'DD.MM.YYYY HH24:MI') ILIKE $${paramIndex})
         OR EXISTS (
           SELECT 1
           FROM transaction_items ti
@@ -1531,7 +1524,7 @@ app.get('/api/purchases/:id', verifyAccessToken, async (req, res) => {
     
     // Получаем товары для этой транзакции
     const itemsResult = await pool.query(
-      `SELECT product_id, product_name, product_price, quantity
+      `SELECT ${TRANSACTION_ITEMS_SELECT}
        FROM transaction_items
        WHERE transaction_id = $1
        ORDER BY id`,
@@ -1553,7 +1546,7 @@ app.get('/api/purchases/:id', verifyAccessToken, async (req, res) => {
       );
       if (repl.rows.length > 0) {
         const replItems = await pool.query(
-          'SELECT product_id, product_name, product_price, quantity FROM transaction_items WHERE transaction_id = $1 ORDER BY id',
+          `SELECT ${TRANSACTION_ITEMS_SELECT} FROM transaction_items WHERE transaction_id = $1 ORDER BY id`,
           [repl.rows[0].id]
         );
         purchase.replacement_transaction = { ...repl.rows[0], items: replItems.rows };
@@ -1568,7 +1561,7 @@ app.get('/api/purchases/:id', verifyAccessToken, async (req, res) => {
       );
       if (ret.rows.length > 0) {
         const retItems = await pool.query(
-          'SELECT product_id, product_name, product_price, quantity FROM transaction_items WHERE transaction_id = $1 ORDER BY id',
+          `SELECT ${TRANSACTION_ITEMS_SELECT} FROM transaction_items WHERE transaction_id = $1 ORDER BY id`,
           [ret.rows[0].id]
         );
         purchase.return_transaction = { ...ret.rows[0], items: retItems.rows };
@@ -1634,22 +1627,7 @@ app.post('/api/purchases/replacement', verifyAccessToken, async (req, res) => {
 
     // Удалить старые позиции и вставить новые
     await client.query('DELETE FROM transaction_items WHERE transaction_id = $1', [returnTransactionId]);
-
-    if (items && Array.isArray(items) && items.length > 0) {
-      for (const item of items) {
-        await client.query(
-          `INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            returnTransactionId,
-            item.productId || item.product_id || '',
-            item.productName || item.product_name || '',
-            parseFloat(item.productPrice || item.product_price || 0),
-            parseInt(item.quantity || 1, 10)
-          ]
-        );
-      }
-    }
+    await insertTransactionItems(client, returnTransactionId, items);
 
     // Пересчитать total_spent только для заказов с клиентом
     if (clientId != null) {
@@ -1675,7 +1653,7 @@ app.post('/api/purchases/replacement', verifyAccessToken, async (req, res) => {
     );
     const updatedRow = updatedOrder.rows[0];
     const updatedItems = await pool.query(
-      'SELECT product_id, product_name, product_price, quantity FROM transaction_items WHERE transaction_id = $1 ORDER BY id',
+      `SELECT ${TRANSACTION_ITEMS_SELECT} FROM transaction_items WHERE transaction_id = $1 ORDER BY id`,
       [returnTransactionId]
     );
     updatedRow.items = updatedItems.rows;
@@ -1727,7 +1705,7 @@ app.patch('/api/purchases/:id', verifyAccessToken, async (req, res) => {
     
     const purchase = updated.rows[0];
     const itemsResult = await pool.query(
-      'SELECT product_id, product_name, product_price, quantity FROM transaction_items WHERE transaction_id = $1 ORDER BY id',
+      `SELECT ${TRANSACTION_ITEMS_SELECT} FROM transaction_items WHERE transaction_id = $1 ORDER BY id`,
       [id]
     );
     purchase.items = itemsResult.rows;
@@ -1841,7 +1819,7 @@ app.get('/api/admin/transactions/:id', verifyAccessToken, async (req, res) => {
     
     // Получаем товары для этой транзакции
     const itemsResult = await pool.query(
-      `SELECT product_id, product_name, product_price, quantity
+      `SELECT ${TRANSACTION_ITEMS_SELECT}
        FROM transaction_items
        WHERE transaction_id = $1
        ORDER BY id`,
@@ -1878,7 +1856,7 @@ app.get('/api/products/tree', verifyAccessToken, async (req, res) => {
 
       for (const sub of subcategories) {
         const productsResult = await pool.query(
-          'SELECT id, name, price, image_data, display_order, tags FROM products WHERE subcategory_id = $1 ORDER BY display_order, id',
+          'SELECT id, name, price, image_data, display_order, tags, base_weight_grams FROM products WHERE subcategory_id = $1 ORDER BY display_order, id',
           [sub.id]
         );
         subcategoriesTree.push({
@@ -1889,6 +1867,7 @@ app.get('/api/products/tree', verifyAccessToken, async (req, res) => {
             id: p.id,
             name: p.name,
             price: parseFloat(p.price),
+            base_weight_grams: p.base_weight_grams != null ? parseInt(p.base_weight_grams, 10) : null,
             image_data: p.image_data || null,
             tags: p.tags ? p.tags.split(',').filter(t => t.trim()) : []
           }))
@@ -2134,7 +2113,7 @@ app.get('/api/admin/products/subcategories/:subcategoryId/products', verifyAcces
 // Создание товара
 app.post('/api/admin/products', verifyAccessToken, requireAdmin, async (req, res) => {
   try {
-    const { subcategoryId, name, price, description, imageUrl, imageData, displayOrder, tags } = req.body;
+    const { subcategoryId, name, price, description, imageUrl, imageData, displayOrder, tags, baseWeightGrams, base_weight_grams } = req.body;
     
     // Валидация данных
     if (!subcategoryId) {
@@ -2148,6 +2127,11 @@ app.post('/api/admin/products', verifyAccessToken, requireAdmin, async (req, res
     if (price === undefined || price === null || isNaN(parseFloat(price))) {
       return res.status(400).json({ error: 'Цена должна быть числом' });
     }
+
+    const weightParsed = parseBaseWeightGrams(baseWeightGrams ?? base_weight_grams);
+    if (weightParsed.error) {
+      return res.status(400).json({ error: weightParsed.error });
+    }
     
     // imageUrl или imageData — base64 строка для хранения в image_data
     const imageSource = imageUrl ?? imageData;
@@ -2159,10 +2143,10 @@ app.post('/api/admin/products', verifyAccessToken, requireAdmin, async (req, res
     const finalTags = tags && Array.isArray(tags) ? tags.join(',') : (tags || '');
     
     const result = await pool.query(
-      `INSERT INTO products (subcategory_id, name, price, description, image_data, display_order, tags)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO products (subcategory_id, name, price, description, image_data, display_order, tags, base_weight_grams)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [subcategoryId, name.trim(), parseFloat(price), description || null, finalImageData, displayOrder || 0, finalTags]
+      [subcategoryId, name.trim(), parseFloat(price), description || null, finalImageData, displayOrder || 0, finalTags, weightParsed.value]
     );
     res.json(result.rows[0]);
   } catch (error) {
@@ -2185,7 +2169,7 @@ app.post('/api/admin/products', verifyAccessToken, requireAdmin, async (req, res
 app.put('/api/admin/products/:id', verifyAccessToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, price, description, imageUrl, imageData, displayOrder, tags } = req.body;
+    const { name, price, description, imageUrl, imageData, displayOrder, tags, baseWeightGrams, base_weight_grams } = req.body;
     
     // Валидация данных
     if (!name || name.trim().length === 0) {
@@ -2194,6 +2178,17 @@ app.put('/api/admin/products/:id', verifyAccessToken, requireAdmin, async (req, 
     
     if (price === undefined || price === null || isNaN(parseFloat(price))) {
       return res.status(400).json({ error: 'Цена должна быть числом' });
+    }
+
+    const weightFieldPresent = Object.prototype.hasOwnProperty.call(req.body, 'baseWeightGrams')
+      || Object.prototype.hasOwnProperty.call(req.body, 'base_weight_grams');
+    let weightValue;
+    if (weightFieldPresent) {
+      const weightParsed = parseBaseWeightGrams(baseWeightGrams ?? base_weight_grams);
+      if (weightParsed.error) {
+        return res.status(400).json({ error: weightParsed.error });
+      }
+      weightValue = weightParsed.value;
     }
     
     // imageUrl или imageData — base64 строка для хранения в image_data
@@ -2205,13 +2200,21 @@ app.put('/api/admin/products/:id', verifyAccessToken, requireAdmin, async (req, 
     }
     const finalTags = tags && Array.isArray(tags) ? tags.join(',') : (tags || '');
     
-    const result = await pool.query(
-      `UPDATE products 
-       SET name = $1, price = $2, description = $3, image_data = $4, display_order = $5, tags = $6, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
-       RETURNING *`,
-      [name.trim(), parseFloat(price), description || null, finalImageData, displayOrder || 0, finalTags, id]
-    );
+    const result = weightFieldPresent
+      ? await pool.query(
+        `UPDATE products 
+         SET name = $1, price = $2, description = $3, image_data = $4, display_order = $5, tags = $6, base_weight_grams = $7, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $8
+         RETURNING *`,
+        [name.trim(), parseFloat(price), description || null, finalImageData, displayOrder || 0, finalTags, weightValue, id]
+      )
+      : await pool.query(
+        `UPDATE products 
+         SET name = $1, price = $2, description = $3, image_data = $4, display_order = $5, tags = $6, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $7
+         RETURNING *`,
+        [name.trim(), parseFloat(price), description || null, finalImageData, displayOrder || 0, finalTags, id]
+      );
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Товар не найден' });
@@ -2397,6 +2400,16 @@ const executeDeletion = async () => {
 
 // Запускаем проверку тикетов каждую минуту
 setInterval(executeDeletion, 60000); // 60000 мс = 1 минута
+
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({
+      error: 'Размер запроса слишком большой. Изображение не должно превышать 2 МБ.'
+    });
+  }
+  console.error('Необработанная ошибка:', err);
+  res.status(500).json({ error: err.message || 'Ошибка сервера' });
+});
 
 // Инициализируем БД и только потом запускаем сервер
 initDatabase()

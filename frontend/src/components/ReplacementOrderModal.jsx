@@ -6,6 +6,7 @@ import ClientStatusChip from './ClientStatusChip'
 import { purchaseHistoryService } from '../services/purchaseHistoryService'
 import { normalizeMiddleNameForDisplay } from '../utils/clientDisplay'
 import { buildReplacementDiscountInfo } from '../utils/clientDiscount'
+import { cartItemToOrderLine } from '../utils/weightPricing'
 import './PurchaseModal.css'
 import './ReplacementOrderModal.css'
 
@@ -54,12 +55,7 @@ const ReplacementOrderModal = ({ order, onClose, onSuccess }) => {
     }
 
     setLoading(true)
-    const items = Object.values(selectedProducts).map(item => ({
-      productId: item.product.id,
-      productName: item.product.name,
-      productPrice: item.product.price,
-      quantity: item.quantity
-    }))
+    const items = Object.values(selectedProducts).map(cartItemToOrderLine)
 
     try {
       const result = await purchaseHistoryService.createReplacement(order.id, p, items)

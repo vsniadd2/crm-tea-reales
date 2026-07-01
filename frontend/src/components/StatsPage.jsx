@@ -5,18 +5,13 @@ import { getProductsTree } from '../services/productsService'
 import { pointsService } from '../services/pointsService'
 import { useNotification } from './NotificationProvider'
 import DateInput from './DateInput'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts'
+import DonutChart, { DonutChartSection, toDonutData } from './DonutChart'
+import { isAdminUser } from '../utils/userDisplay'
 import './StatsPage.css'
-//g
+
 const StatsPage = () => {
   const { refreshAccessToken, ensureValidToken, user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const isAdmin = isAdminUser(user)
   const canFilterByPoint = isAdmin || user?.accessAllPoints
   const { showNotification } = useNotification()
   const [loading, setLoading] = useState(true) // только для первой загрузки
@@ -48,13 +43,20 @@ const StatsPage = () => {
   }))
   const [productViewType, setProductViewType] = useState('day') // day, all, category, other
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
-  const [paymentStats, setPaymentStats] = useState(null)
 
   const selectedDate = datesByViewType[productViewType]
   const period = periodsByViewType[productViewType]
 
   const setSelectedDate = (date) => {
     setDatesByViewType(prev => ({ ...prev, [productViewType]: date }))
+    // Дата в фильтре применяется только к периоду «День» — переключаем автоматически
+    if (productViewType !== 'day') {
+      setPeriodsByViewType(prev => (
+        prev[productViewType] === 'day'
+          ? prev
+          : { ...prev, [productViewType]: 'day' }
+      ))
+    }
   }
 
   const setPeriod = (p) => {
@@ -118,7 +120,7 @@ const StatsPage = () => {
 
   // Для admin/855 — фильтр на странице; для сотрудника — всегда своя точка
   const pointIdParam = canFilterByPoint
-    ? (productViewType === 'all' ? null : (selectedPointId === '' ? null : selectedPointId))
+    ? (productViewType === 'all' && isAdmin ? null : (selectedPointId === '' ? null : selectedPointId))
     : (user?.pointId ?? null)
 
   const loadPoints = async () => {
@@ -202,7 +204,6 @@ const StatsPage = () => {
     setProductsStats(cached.productsStats || [])
     setCategoriesStats(cached.categoriesStats || [])
     setCategoryProductsStats(cached.categoryProductsStats || [])
-    setPaymentStats(cached.paymentStats ?? null)
   }
 
   const loadStats = async () => {
@@ -233,8 +234,7 @@ const StatsPage = () => {
         } else if (productViewType === 'other') {
           promises.push(
             orderStatsService.getProductsStats(dateFrom, dateTo, pointIdParam),
-            orderStatsService.getCategoriesStats(dateFrom, dateTo, null, pointIdParam),
-            orderStatsService.getPaymentStats(dateFrom, dateTo, pointIdParam)
+            orderStatsService.getCategoriesStats(dateFrom, dateTo, null, pointIdParam)
           )
         }
 
@@ -243,10 +243,9 @@ const StatsPage = () => {
           setCategoriesStats([])
           setCategoryProductsStats([])
           setProductStats(null)
-          setPaymentStats(null)
         } else {
           const results = await Promise.all(promises)
-          const cachedData = { productsStats: [], categoriesStats: [], categoryProductsStats: [], paymentStats: null }
+          const cachedData = { productsStats: [], categoriesStats: [], categoryProductsStats: [] }
           if (productViewType === 'all') {
             cachedData.productsStats = results[0].products || []
             cachedData.categoriesStats = results[1].categories || []
@@ -256,7 +255,6 @@ const StatsPage = () => {
           } else if (productViewType === 'other') {
             cachedData.productsStats = results[0].products || []
             cachedData.categoriesStats = results[1].categories || []
-            cachedData.paymentStats = results[2] || null
           }
           cacheRef.current[key] = cachedData
           applyCachedStats(cachedData)
@@ -292,11 +290,15 @@ const StatsPage = () => {
     loadCategories()
     if (canFilterByPoint) {
       loadPoints()
-    } else if (productViewType === 'all') {
-      setProductViewType('day')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canFilterByPoint])
+
+  useEffect(() => {
+    if (!isAdmin && productViewType === 'all') {
+      setProductViewType('day')
+    }
+  }, [isAdmin, productViewType])
 
   useEffect(() => {
     if (productViewType === 'category' && selectedCategoryId) {
@@ -313,109 +315,6 @@ const StatsPage = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, selectedCategoryId, productViewType])
-
-  const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#4d7a42', '#ec4899', '#14b8a6', '#f97316']
-
-  // Подпись процентов на donut — в середине сегмента (внутри кольца), чтобы не обрезалось clipPath
-  const renderPieLabel = (props) => {
-    const { cx, cy, midAngle, innerRadius, outerRadius, percent, percentage } = props
-    const RADIAN = Math.PI / 180
-    const r = (innerRadius + outerRadius) / 2
-    const x = cx + r * Math.cos(-midAngle * RADIAN)
-    const y = cy + r * Math.sin(-midAngle * RADIAN)
-    const pct = percentage != null ? Number(percentage) : (percent != null ? percent * 100 : 0)
-    return (
-      <text x={x} y={y} fill="#1a1a1a" stroke="#fff" strokeWidth={2} strokeLinejoin="round" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 13, fontWeight: 600, paintOrder: 'stroke' }}>
-        {`${pct.toFixed(1)}%`}
-      </text>
-    )
-  }
-
-  // Преобразование данных для donut-диаграмм (как на вкладке "по дням")
-  const toDonutData = (items, limit = 10) => {
-    if (!items || items.length === 0) return []
-    const total = items.reduce((s, i) => s + (i.revenue || 0), 0)
-    return items.slice(0, limit).map((item, i) => ({
-      ...item,
-      id: item.id || item.name,
-      revenue: item.revenue || 0,
-      percentage: total > 0 ? ((item.revenue || 0) / total * 100).toFixed(1) : '0',
-      color: item.color || COLORS[i % COLORS.length]
-    }))
-  }
-
-  const DonutChartSection = ({ title, dateLabel, data }) => {
-    const donutData = toDonutData(data)
-    const totalSum = donutData.reduce((s, i) => s + (i.revenue || 0), 0)
-    if (donutData.length === 0) return null
-    return (
-      <div className="chart-section day-top-products-section">
-        <div className="day-top-products-header">
-          <h3>{title}</h3>
-          <div className="day-info">
-            {dateLabel && <span className="day-date">{dateLabel}</span>}
-            <span className="day-total">Всего: {totalSum.toFixed(2)} BYN</span>
-          </div>
-        </div>
-        <div className="day-top-products-content">
-          <div className="donut-chart-container">
-            <ResponsiveContainer width="100%" height={350}>
-              <PieChart accessibilityLayer={false}>
-                <Pie
-                  data={donutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={80}
-                  outerRadius={140}
-                  paddingAngle={2}
-                  dataKey="revenue"
-                  label={renderPieLabel}
-                  labelLine={false}
-                >
-                  {donutData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const d = payload[0].payload
-                      return (
-                        <div className="chart-tooltip">
-                          <p className="chart-tooltip-label">{d.name}</p>
-                          <p className="chart-tooltip-value">{d.percentage}%</p>
-                          <p className="chart-tooltip-value">{Number(d.revenue).toFixed(2)} BYN</p>
-                          {d.quantity != null && (
-                            <p className="chart-tooltip-count">Количество: {d.quantity} шт</p>
-                          )}
-                          {d.count != null && (
-                            <p className="chart-tooltip-count">Продаж: {d.count}</p>
-                          )}
-                        </div>
-                      )
-                    }
-                    return null
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="day-top-products-legend">
-            {donutData.map((product, index) => (
-              <div key={product.id || index} className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: product.color }} />
-                <div className="legend-content">
-                  <div className="legend-percentage">{product.percentage}%</div>
-                  <div className="legend-name">{product.name}</div>
-                  <div className="legend-revenue">{Number(product.revenue).toFixed(2)} BYN</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   const getPeriodLabel = () => {
     switch (period) {
@@ -515,7 +414,7 @@ const StatsPage = () => {
                   >
                     По дням
                   </button>
-                  {canFilterByPoint && (
+                  {isAdmin && (
                     <button
                       type="button"
                       onClick={() => {
@@ -596,7 +495,7 @@ const StatsPage = () => {
 
             {/* График по дням */}
             {productViewType === 'day' && (
-              <div className="chart-section day-top-products-section">
+              <div className="chart-section day-top-products-section chart-section--enter">
                 <div className="day-top-products-header">
                   <h3>Топ 5 товаров</h3>
                   <div className="day-info">
@@ -616,69 +515,42 @@ const StatsPage = () => {
                     )}
                   </div>
                 </div>
-                {dayTopProducts && dayTopProducts.products && dayTopProducts.products.length > 0 ? (
+                {dayTopProducts && dayTopProducts.products && dayTopProducts.products.length > 0 ? (() => {
+                  const dayDonutData = toDonutData(dayTopProducts.products, 5)
+                  return (
                   <div className="day-top-products-content">
                     <div className="donut-chart-container">
-                      <ResponsiveContainer width="100%" height={350}>
-                        <PieChart accessibilityLayer={false}>
-                          <Pie
-                            data={dayTopProducts.products}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={80}
-                            outerRadius={140}
-                            paddingAngle={2}
-                            dataKey="revenue"
-                            label={renderPieLabel}
-                            labelLine={false}
-                          >
-                            {dayTopProducts.products.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload
-                                return (
-                                  <div className="chart-tooltip">
-                                    <p className="chart-tooltip-label">{data.name}</p>
-                                    <p className="chart-tooltip-value">{data.percentage}%</p>
-                                    <p className="chart-tooltip-value">{data.revenue.toFixed(2)} BYN</p>
-                                    <p className="chart-tooltip-count">Количество: {data.quantity} шт</p>
-                                  </div>
-                                )
-                              }
-                              return null
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <DonutChart items={dayDonutData} />
                     </div>
                     <div className="day-top-products-legend">
-                      {dayTopProducts.products.map((product, index) => (
-                        <div key={product.id || index} className="legend-item">
-                          <div 
-                            className="legend-color" 
-                            style={{ backgroundColor: product.color || COLORS[index % COLORS.length] }}
+                      {dayDonutData.map((product, index) => (
+                        <div
+                          key={product.id || index}
+                          className="legend-item legend-item--enter"
+                          style={{ '--legend-i': index }}
+                        >
+                          <div
+                            className="legend-color"
+                            style={{ backgroundColor: product.color }}
                           />
                           <div className="legend-content">
                             <div className="legend-percentage">{product.percentage}%</div>
                             <div className="legend-name">{product.name}</div>
-                            <div className="legend-revenue">{product.revenue.toFixed(2)} BYN</div>
+                            <div className="legend-revenue">{Number(product.revenue).toFixed(2)} BYN</div>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
-                ) : (
+                  )
+                })() : (
                   <div className="empty-state">Нет данных за выбранный день</div>
                 )}
               </div>
             )}
 
             {/* Общий график — объединённые данные по всем точкам (Червенский + Валерианова) */}
-            {productViewType === 'all' && (
+            {isAdmin && productViewType === 'all' && (
               <>
                 {productsStats.length > 0 && (
                   <DonutChartSection
@@ -747,20 +619,13 @@ const StatsPage = () => {
                 )}
                 {productsStats.length > 0 && (
                   <DonutChartSection
-                    title={`Топ товаров ${getPeriodLabel()}`}
-                    data={productsStats.slice(0, 10)}
+                    title={`Все проданные товары ${getPeriodLabel()}`}
+                    data={productsStats}
+                    limit={null}
+                    variant="full"
                   />
                 )}
-                {paymentStats && (paymentStats.cash?.total > 0 || paymentStats.card?.total > 0) && (
-                  <DonutChartSection
-                    title={`Способы оплаты ${getPeriodLabel()}`}
-                    data={[
-                      { name: 'Наличные', revenue: paymentStats.cash?.total || 0, count: paymentStats.cash?.count || 0 },
-                      { name: 'Карта', revenue: paymentStats.card?.total || 0, count: paymentStats.card?.count || 0 }
-                    ]}
-                  />
-                )}
-                {productViewType === 'other' && categoriesStats.length === 0 && productsStats.length === 0 && (!paymentStats || (paymentStats.cash?.total === 0 && paymentStats.card?.total === 0)) && !loading && (
+                {categoriesStats.length === 0 && productsStats.length === 0 && !loading && (
                   <div className="empty-state">Нет данных для отображения</div>
                 )}
               </>

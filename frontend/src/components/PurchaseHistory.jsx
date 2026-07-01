@@ -17,7 +17,6 @@ import './PurchaseHistory.css'
 const PurchaseHistory = () => {
   const { refreshAccessToken, user } = useAuth()
   const isAdmin = isAdminUser(user)
-  const canFilterByPoint = isAdmin || user?.accessAllPoints
   const { refreshKey, registerRefreshCallback } = useDataRefresh()
   const { showNotification } = useNotification()
   const [purchases, setPurchases] = useState([])
@@ -74,6 +73,17 @@ const PurchaseHistory = () => {
   const cursorPositionRef = useRef(null)
   const isUserTypingRef = useRef(false)
   const loadRequestIdRef = useRef(0)
+
+  // Админ — фильтр из селекта; accessAllPoints — все точки; остальные — только своя точка
+  const historyPointId = useMemo(() => {
+    if (isAdmin) {
+      return selectedPointId !== '' ? selectedPointId : null
+    }
+    if (user?.accessAllPoints) {
+      return null
+    }
+    return user?.pointId ?? null
+  }, [isAdmin, user?.accessAllPoints, user?.pointId, selectedPointId])
 
   // Сохраняем фильтры в localStorage
   useEffect(() => {
@@ -153,17 +163,13 @@ const PurchaseHistory = () => {
       }
       setError(null)
 
-      const pointIdParam = canFilterByPoint
-        ? (selectedPointId !== '' ? selectedPointId : null)
-        : (user?.pointId ?? null)
-
       const fetchPurchases = () => purchaseHistoryService.getPurchases({
         page,
         limit: 20,
         dateFrom: dateFrom || null,
         dateTo: dateTo || null,
         searchName: debouncedSearchName || null,
-        pointId: pointIdParam
+        pointId: historyPointId
       })
 
       let data
@@ -207,7 +213,7 @@ const PurchaseHistory = () => {
         setIsRefreshing(false)
       }
     }
-  }, [page, dateFrom, dateTo, debouncedSearchName, refreshAccessToken, canFilterByPoint, selectedPointId, user?.pointId])
+  }, [page, dateFrom, dateTo, debouncedSearchName, refreshAccessToken, historyPointId])
 
   useEffect(() => {
     loadPurchases()
@@ -299,26 +305,20 @@ const PurchaseHistory = () => {
     try {
       setLoadingStats(true)
       try {
-        const pointIdParam = canFilterByPoint
-          ? (selectedPointId !== '' ? selectedPointId : null)
-          : (user?.pointId ?? null)
         const stats = await purchaseHistoryService.getPaymentStats(
           dateFrom || null,
           dateTo || null,
-          pointIdParam
+          historyPointId
         )
         setPaymentStats(stats)
       } catch (e) {
         if (e?.message === 'UNAUTHORIZED') {
           const refreshed = await refreshAccessToken()
           if (refreshed) {
-            const pointIdParam = canFilterByPoint
-          ? (selectedPointId !== '' ? selectedPointId : null)
-          : (user?.pointId ?? null)
             const stats = await purchaseHistoryService.getPaymentStats(
               dateFrom || null,
               dateTo || null,
-              pointIdParam
+              historyPointId
             )
             setPaymentStats(stats)
             return
@@ -332,14 +332,14 @@ const PurchaseHistory = () => {
     } finally {
       setLoadingStats(false)
     }
-  }, [dateFrom, dateTo, refreshAccessToken, canFilterByPoint, selectedPointId])
+  }, [dateFrom, dateTo, refreshAccessToken, historyPointId])
 
   useEffect(() => {
     loadPaymentStats()
   }, [loadPaymentStats])
 
   const loadPoints = useCallback(async () => {
-    if (!canFilterByPoint) return
+    if (!isAdmin) return
     try {
       const list = await pointsService.getPoints()
       setPoints(Array.isArray(list) ? list : [])
@@ -350,11 +350,25 @@ const PurchaseHistory = () => {
         setPoints(Array.isArray(list) ? list : [])
       }
     }
-  }, [canFilterByPoint, refreshAccessToken])
+  }, [isAdmin, refreshAccessToken])
 
   useEffect(() => {
-    if (canFilterByPoint) loadPoints()
-  }, [canFilterByPoint, loadPoints])
+    if (isAdmin) loadPoints()
+  }, [isAdmin, loadPoints])
+
+  const handleClearSearch = () => {
+    setSearchName('')
+    setDebouncedSearchName('')
+    setPage(1)
+    try {
+      localStorage.removeItem('purchaseHistory_searchName')
+    } catch (e) {
+      // Игнорируем ошибки localStorage
+    }
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }
 
   const handleClearFilters = () => {
     setDateFrom('')
@@ -536,8 +550,50 @@ const PurchaseHistory = () => {
             ))}
           </div>
         )}
+        <div className="purchase-history-search-container">
+          <input
+            ref={searchInputRef}
+            id="searchName"
+            type="text"
+            className="purchase-history-search-input"
+            placeholder="Поиск по клиенту, ID заказа, товару или дате..."
+            value={searchName}
+            onChange={(e) => {
+              cursorPositionRef.current = e.target.selectionStart
+              isUserTypingRef.current = true
+              setSearchName(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                handleClearSearch()
+              }
+            }}
+            onFocus={(e) => {
+              wasFocusedRef.current = true
+              if (cursorPositionRef.current !== null) {
+                setTimeout(() => {
+                  e.target.setSelectionRange(cursorPositionRef.current, cursorPositionRef.current)
+                }, 0)
+              }
+            }}
+            onBlur={() => {
+              wasFocusedRef.current = false
+            }}
+            aria-label="Поиск по истории покупок"
+          />
+          {searchName && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="purchase-history-search-clear"
+              aria-label="Очистить поиск"
+            >
+              ×
+            </button>
+          )}
+        </div>
         <div className="purchase-history-filters">
-          {canFilterByPoint && points.length > 0 && (
+          {isAdmin && points.length > 0 && (
             <div className="filter-group">
               <label htmlFor="pointSelect">Точка:</label>
               <select
@@ -553,33 +609,6 @@ const PurchaseHistory = () => {
               </select>
             </div>
           )}
-          <div className="filter-group">
-            <label htmlFor="searchName">Клиент / позиция:</label>
-            <input
-              ref={searchInputRef}
-              id="searchName"
-              type="text"
-              value={searchName}
-              onChange={(e) => {
-                cursorPositionRef.current = e.target.selectionStart
-                isUserTypingRef.current = true
-                setSearchName(e.target.value)
-              }}
-              onFocus={(e) => {
-                wasFocusedRef.current = true
-                if (cursorPositionRef.current !== null) {
-                  setTimeout(() => {
-                    e.target.setSelectionRange(cursorPositionRef.current, cursorPositionRef.current)
-                  }, 0)
-                }
-              }}
-              onBlur={() => {
-                wasFocusedRef.current = false
-              }}
-              placeholder="Имя, фамилия, Ано для анонимов или название позиции"
-              className="text-input"
-            />
-          </div>
           <div className="filter-group">
             <label htmlFor="dateFrom">От:</label>
             <DateInput

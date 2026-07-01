@@ -541,7 +541,7 @@
 .day-top-products-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 16px;
@@ -557,6 +557,7 @@
 .day-info {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -586,13 +587,8 @@
   overflow: visible;
 }
 
-.donut-chart-container .recharts-wrapper {
+.donut-chart-container .donut-chart-canvas-wrap {
   overflow: visible;
-  outline: none !important;
-}
-
-.donut-chart-container .recharts-surface {
-  outline: none !important;
 }
 
 .day-top-products-legend {

@@ -3,13 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { orderStatsService } from '../services/orderStatsService'
 import { useNotification } from './NotificationProvider'
 import DateInput from './DateInput'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts'
+import { DonutChartSection } from './DonutChart'
 import './OrderDetailsPage.css'
 
 const OrderDetailsPage = () => {
@@ -72,107 +66,6 @@ const OrderDetailsPage = () => {
         ? new Date(dateFrom).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
         : `${new Date(dateFrom).toLocaleDateString('ru-RU')} – ${new Date(dateTo).toLocaleDateString('ru-RU')}`)
     : null
-
-  const COLORS = ['#ef4444', '#22c55e', '#3b82f6', '#f59e0b', '#4d7a42', '#ec4899', '#14b8a6', '#f97316']
-
-  const renderPieLabel = (props) => {
-    const { cx, cy, midAngle, innerRadius, outerRadius, percent, percentage } = props
-    const RADIAN = Math.PI / 180
-    const r = ((innerRadius || 0) + outerRadius) / 2
-    const x = cx + r * Math.cos(-midAngle * RADIAN)
-    const y = cy + r * Math.sin(-midAngle * RADIAN)
-    const pct = percentage != null ? Number(percentage) : (percent != null ? percent * 100 : 0)
-    return (
-      <text x={x} y={y} fill="#1a1a1a" stroke="#fff" strokeWidth={2} strokeLinejoin="round" textAnchor="middle" dominantBaseline="central" style={{ fontSize: 13, fontWeight: 600, paintOrder: 'stroke' }}>
-        {`${pct.toFixed(1)}%`}
-      </text>
-    )
-  }
-
-  const toDonutData = (items, limit = 10) => {
-    if (!items || items.length === 0) return []
-    const total = items.reduce((s, i) => s + (i.revenue || i.value || 0), 0)
-    return items.slice(0, limit).map((item, i) => ({
-      ...item,
-      id: item.id || item.name,
-      revenue: item.revenue ?? item.value ?? 0,
-      percentage: total > 0 ? (((item.revenue ?? item.value ?? 0) / total * 100).toFixed(1)) : '0',
-      color: item.color || COLORS[i % COLORS.length]
-    }))
-  }
-
-  const DonutChartSection = ({ title, dateLabel, data }) => {
-    const donutData = toDonutData(data)
-    const totalSum = donutData.reduce((s, i) => s + (i.revenue || 0), 0)
-    if (donutData.length === 0) return null
-    return (
-      <div className="chart-section day-top-products-section">
-        <div className="day-top-products-header">
-          <h3>{title}</h3>
-          <div className="day-info">
-            {dateLabel && <span className="day-date">{dateLabel}</span>}
-            <span className="day-total">Всего: {totalSum.toFixed(2)} BYN</span>
-          </div>
-        </div>
-        <div className="day-top-products-content">
-          <div className="donut-chart-container">
-            <ResponsiveContainer width="100%" height={350}>
-              <PieChart accessibilityLayer={false}>
-                <Pie
-                  data={donutData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={80}
-                  outerRadius={140}
-                  paddingAngle={2}
-                  dataKey="revenue"
-                  label={renderPieLabel}
-                  labelLine={false}
-                >
-                  {donutData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const d = payload[0].payload
-                      return (
-                        <div className="chart-tooltip">
-                          <p className="chart-tooltip-label">{d.name}</p>
-                          <p className="chart-tooltip-value">{d.percentage}%</p>
-                          <p className="chart-tooltip-value">{Number(d.revenue).toFixed(2)} BYN</p>
-                          {d.count != null && (
-                            <p className="chart-tooltip-count">Продаж: {d.count}</p>
-                          )}
-                          {d.quantity != null && (
-                            <p className="chart-tooltip-count">Количество: {d.quantity} шт</p>
-                          )}
-                        </div>
-                      )
-                    }
-                    return null
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="day-top-products-legend">
-            {donutData.map((product, index) => (
-              <div key={product.id || index} className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: product.color }} />
-                <div className="legend-content">
-                  <div className="legend-percentage">{product.percentage}%</div>
-                  <div className="legend-name">{product.name}</div>
-                  <div className="legend-revenue">{Number(product.revenue).toFixed(2)} BYN</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   // Данные для графика способов оплаты (формат как для donut)
   const paymentChartData = paymentStats ? [

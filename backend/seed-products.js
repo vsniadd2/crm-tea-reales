@@ -45,23 +45,25 @@ async function upsertProduct({
   description = null,
   imageData = null,
   displayOrder = 0,
-  tags = []
+  tags = [],
+  baseWeightGrams = null
 }) {
   const tagsStr = Array.isArray(tags) ? tags.join(',') : (tags || '');
   const res = await pool.query(
     `
-      INSERT INTO products (subcategory_id, name, price, description, image_data, display_order, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO products (subcategory_id, name, price, description, image_data, display_order, tags, base_weight_grams)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (subcategory_id, name) DO UPDATE SET
         price = EXCLUDED.price,
         description = EXCLUDED.description,
         image_data = EXCLUDED.image_data,
         display_order = EXCLUDED.display_order,
         tags = EXCLUDED.tags,
+        base_weight_grams = COALESCE(EXCLUDED.base_weight_grams, products.base_weight_grams),
         updated_at = CURRENT_TIMESTAMP
       RETURNING id
     `,
-    [subcategoryId, name, Number.parseFloat(price) || 0, description, imageData, asInt(displayOrder) ?? 0, tagsStr]
+    [subcategoryId, name, Number.parseFloat(price) || 0, description, imageData, asInt(displayOrder) ?? 0, tagsStr, asInt(baseWeightGrams)]
   );
   return res.rows[0].id;
 }
@@ -116,8 +118,8 @@ async function seed() {
   await upsertProduct({ subcategoryId: cakesSubId, name: 'Чизкейк', price: 8.0, displayOrder: 10, tags: ['десерт'] });
   await upsertProduct({ subcategoryId: cakesSubId, name: 'Брауни', price: 6.5, displayOrder: 20, tags: ['десерт'] });
 
-  await upsertProduct({ subcategoryId: packagedTeaSubId, name: 'Чай листовой 100 г', price: 18.0, displayOrder: 10, tags: ['чай'] });
-  await upsertProduct({ subcategoryId: packagedTeaSubId, name: 'Чай листовой 250 г', price: 35.0, displayOrder: 20, tags: ['чай'] });
+  await upsertProduct({ subcategoryId: packagedTeaSubId, name: 'Чай листовой 100 г', price: 18.0, displayOrder: 10, tags: ['чай'], baseWeightGrams: 100 });
+  await upsertProduct({ subcategoryId: packagedTeaSubId, name: 'Чай листовой 250 г', price: 35.0, displayOrder: 20, tags: ['чай'], baseWeightGrams: 250 });
 
   await upsertProduct({ subcategoryId: merchSubId, name: 'Термокружка', price: 35.0, displayOrder: 10, tags: ['мерч'] });
 

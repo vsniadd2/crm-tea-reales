@@ -128,35 +128,18 @@ button:focus-visible {
     box-shadow: none;
 }
 
-/* Recharts — без синей рамки при клике/тапе на графиках */
+/* Chart.js donut — без рамки при клике/тапе */
 .donut-chart-container,
-.donut-chart-container .recharts-wrapper,
-.donut-chart-container .recharts-surface,
-.donut-chart-container svg,
-.donut-chart-container path,
-.donut-chart-container .recharts-sector,
-.donut-chart-container .recharts-layer {
+.donut-chart-container canvas {
     -webkit-tap-highlight-color: transparent;
 }
 
 .donut-chart-container:focus,
 .donut-chart-container:focus-within,
-.donut-chart-container .recharts-wrapper:focus,
-.donut-chart-container .recharts-wrapper:focus-visible,
-.donut-chart-container .recharts-surface:focus,
-.donut-chart-container .recharts-surface:focus-visible,
-.donut-chart-container svg:focus,
-.donut-chart-container svg:focus-visible,
-.donut-chart-container path:focus,
-.donut-chart-container path:focus-visible,
-.donut-chart-container .recharts-sector:focus,
-.donut-chart-container .recharts-sector:focus-visible {
+.donut-chart-container canvas:focus,
+.donut-chart-container canvas:focus-visible {
     outline: none !important;
     box-shadow: none !important;
-}
-
-.donut-chart-container .recharts-active-shape {
-    outline: none !important;
 }
 
 /* ========================================

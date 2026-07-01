@@ -9,6 +9,7 @@ import PaymentMethodModal from './PaymentMethodModal'
 import { clientService } from '../services/clientService'
 import { normalizeMiddleNameForDisplay, normalizeClientIdForDisplay } from '../utils/clientDisplay'
 import { buildPurchaseDiscountInfo } from '../utils/clientDiscount'
+import { cartItemToOrderLine } from '../utils/weightPricing'
 import {
   applyEmployeeDiscount,
   calcEmployeeDiscountAmount,
@@ -129,12 +130,7 @@ const PurchaseModal = ({ client, onClose }) => {
     const baseFinal = discountInfo ? discountInfo.finalPrice : p
     const { amount: empAmount, finalAmount } = applyEmployeeDiscount(baseFinal, employeeDiscount)
 
-    const items = Object.values(selectedProducts).map(item => ({
-      productId: item.product.id,
-      productName: item.product.name,
-      productPrice: item.product.price,
-      quantity: item.quantity
-    }))
+    const items = Object.values(selectedProducts).map(cartItemToOrderLine)
     setPendingPurchaseData({ price: p, items, finalAmount, employeeDiscount: empAmount })
     setShowPaymentModal(true)
   }

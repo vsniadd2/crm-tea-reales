@@ -5,6 +5,7 @@ import { useDataRefresh } from '../contexts/DataRefreshContext'
 import CategoriesManageModal from './CategoriesManageModal'
 import ConfirmDialog from './ConfirmDialog'
 import ImageUploader from './ImageUploader'
+import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB, validateImageDataUrlSize } from '../config/upload'
 import './CategoriesPage.css'
 
 const CategoriesPage = () => {
@@ -25,10 +26,45 @@ const CategoriesPage = () => {
   const [editProduct, setEditProduct] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState({ type: null, id: null, name: '' })
   const DEFAULT_CATEGORY_COLOR = '#6b7280'
-  const [formData, setFormData] = useState({ name: '', displayOrder: 0, price: '', subcategoryId: '', categoryId: '', imageUrl: '' })
+  const [formData, setFormData] = useState({ name: '', displayOrder: 0, price: '', baseWeightGrams: '', subcategoryId: '', categoryId: '', imageUrl: '' })
   const [imagePreview, setImagePreview] = useState(null)
   const [saving, setSaving] = useState(false)
   const [imageCompressing, setImageCompressing] = useState(false)
+
+  const EMPTY_PRODUCT_FORM = { name: '', price: '', baseWeightGrams: '', displayOrder: 0, imageUrl: '' }
+
+  const closeOtherEdits = () => {
+    setEditCategory(null)
+    setEditSubcategory(null)
+    setEditProduct(null)
+    setAddSubcategory(null)
+  }
+
+  const openAddProductForm = (subId) => {
+    closeOtherEdits()
+    setAddProduct(subId)
+    setFormData(EMPTY_PRODUCT_FORM)
+    setImagePreview(null)
+  }
+
+  const openEditProductForm = (prod) => {
+    closeOtherEdits()
+    setAddProduct(null)
+    setEditProduct(prod)
+    setFormData({
+      name: prod.name,
+      price: String(prod.price ?? ''),
+      baseWeightGrams: prod.base_weight_grams != null ? String(prod.base_weight_grams) : '',
+      displayOrder: prod.display_order || 0,
+      imageUrl: prod.image_data || ''
+    })
+    setImagePreview(prod.image_data || null)
+  }
+
+  const handleGramsInputChange = (value) => {
+    const digits = value.replace(/\D/g, '')
+    setFormData(prev => ({ ...prev, baseWeightGrams: digits }))
+  }
 
   const loadCategories = useCallback(async () => {
     try {
@@ -196,8 +232,8 @@ const CategoriesPage = () => {
 
   const handleImageSelect = async (file) => {
     setError(null)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Размер файла не должен превышать 5 МБ')
+    if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      setError(`Размер файла не должен превышать ${MAX_IMAGE_UPLOAD_MB} МБ`)
       return
     }
     if (!file.type.startsWith('image/')) {
@@ -207,6 +243,11 @@ const CategoriesPage = () => {
     setImageCompressing(true)
     try {
       const compressedBase64 = await compressImage(file, 800, 800, 0.85)
+      const sizeErr = validateImageDataUrlSize(compressedBase64)
+      if (sizeErr) {
+        setError(sizeErr)
+        return
+      }
       setFormData(prev => ({ ...prev, imageUrl: compressedBase64 }))
       setImagePreview(compressedBase64)
     } catch (err) {
@@ -246,13 +287,32 @@ const CategoriesPage = () => {
   }
 
   const handleSaveProduct = async () => {
+    const price = parseFloat(formData.price)
+    const grams = parseInt(formData.baseWeightGrams, 10)
+    if (!formData.name.trim() || !Number.isFinite(price) || price < 0) {
+      setError('Укажите название и цену')
+      return
+    }
+    if (!editProduct && (!Number.isFinite(grams) || grams <= 0)) {
+      setError('Укажите граммовку (положительное число)')
+      return
+    }
+    if (editProduct && formData.baseWeightGrams !== '' && (!Number.isFinite(grams) || grams <= 0)) {
+      setError('Граммовка должна быть положительным числом')
+      return
+    }
     setSaving(true)
     try {
       const productData = {
         name: formData.name,
-        price: parseFloat(formData.price) || 0,
+        price,
         displayOrder: formData.displayOrder || 0,
         imageUrl: formData.imageUrl || (imagePreview?.startsWith('data:') ? imagePreview : null) || null
+      }
+      if (formData.baseWeightGrams !== '' && formData.baseWeightGrams != null) {
+        productData.baseWeightGrams = grams
+      } else if (!editProduct) {
+        productData.baseWeightGrams = grams
       }
 
       if (editProduct) {
@@ -265,7 +325,7 @@ const CategoriesPage = () => {
         })
         setAddProduct(null)
       }
-      setFormData({ name: '', displayOrder: 0, price: '', imageUrl: '' })
+      setFormData({ name: '', displayOrder: 0, price: '', baseWeightGrams: '', imageUrl: '' })
       setImagePreview(null)
       if (addProduct) {
         await loadProducts(addProduct)
@@ -518,11 +578,7 @@ const CategoriesPage = () => {
                               <button
                                 type="button"
                                 className="categories-add-product"
-                                onClick={() => {
-                                  setAddProduct(sub.id)
-                                  setFormData({ name: '', price: '', displayOrder: 0, imageUrl: '' })
-                                  setImagePreview(null)
-                                }}
+                                onClick={() => openAddProductForm(sub.id)}
                               >
                                 + Товар
                               </button>
@@ -532,7 +588,7 @@ const CategoriesPage = () => {
                                   <input
                                     type="text"
                                     value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                                     placeholder="Название товара"
                                     className="categories-input"
                                   />
@@ -540,14 +596,22 @@ const CategoriesPage = () => {
                                     type="number"
                                     step="0.01"
                                     value={formData.price}
-                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                                     placeholder="Цена"
+                                    className="categories-input"
+                                  />
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    value={formData.baseWeightGrams}
+                                    onChange={(e) => handleGramsInputChange(e.target.value)}
+                                    placeholder="Граммовка (г)"
                                     className="categories-input"
                                   />
                                   <ImageUploader
                                     onImageSelect={handleImageSelect}
                                     currentImage={imagePreview}
-                                    maxSizeMB={5}
                                     disabled={imageCompressing}
                                   />
                                   {imagePreview && (
@@ -574,7 +638,7 @@ const CategoriesPage = () => {
                                       onClick={() => {
                                         setAddProduct(null)
                                         setImagePreview(null)
-                                        setFormData({ name: '', displayOrder: 0, price: '', imageUrl: '' })
+                                        setFormData({ name: '', displayOrder: 0, price: '', baseWeightGrams: '', imageUrl: '' })
                                       }}
                                     >
                                       Отмена
@@ -592,18 +656,16 @@ const CategoriesPage = () => {
                                       )}
                                       <div className="products-item-info">
                                         <span className="products-item-name">{prod.name}</span>
-                                        <span className="products-item-price">{prod.price} BYN</span>
+                                        <span className="products-item-price">
+                                          {prod.base_weight_grams ? `${prod.base_weight_grams}г — ` : ''}{prod.price} BYN
+                                        </span>
                                       </div>
                                     </div>
                                     <div className="products-item-actions">
                                       <button
                                         type="button"
                                         className="categories-btn-edit"
-                                        onClick={() => {
-                                          setEditProduct(prod)
-                                          setFormData({ name: prod.name, price: prod.price, displayOrder: prod.display_order || 0, imageUrl: prod.image_data || '' })
-                                          setImagePreview(prod.image_data || null)
-                                        }}
+                                        onClick={() => openEditProductForm(prod)}
                                       >
                                         Изменить
                                       </button>
@@ -621,7 +683,7 @@ const CategoriesPage = () => {
                                         <input
                                           type="text"
                                           value={formData.name}
-                                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                                           placeholder="Название товара"
                                           className="categories-input"
                                         />
@@ -629,17 +691,25 @@ const CategoriesPage = () => {
                                           type="number"
                                           step="0.01"
                                           value={formData.price}
-                                          onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                          onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                                           placeholder="Цена"
+                                          className="categories-input"
+                                        />
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          pattern="[0-9]*"
+                                          value={formData.baseWeightGrams}
+                                          onChange={(e) => handleGramsInputChange(e.target.value)}
+                                          placeholder="Граммовка (г)"
                                           className="categories-input"
                                         />
                                         <ImageUploader
                                           onImageSelect={handleImageSelect}
                                           currentImage={imagePreview || formData.imageUrl || null}
-                                          maxSizeMB={5}
                                           disabled={imageCompressing}
                                         />
-                                        {(imagePreview || editProduct?.image_data) && (
+                                        {(imagePreview || formData.imageUrl) && (
                                           <button
                                             type="button"
                                             onClick={() => { setImagePreview(null); setFormData(prev => ({ ...prev, imageUrl: '' })) }}
@@ -663,7 +733,7 @@ const CategoriesPage = () => {
                                             onClick={() => {
                                               setEditProduct(null)
                                               setImagePreview(null)
-                                              setFormData({ name: '', displayOrder: 0, price: '', imageUrl: '' })
+                                              setFormData({ name: '', displayOrder: 0, price: '', baseWeightGrams: '', imageUrl: '' })
                                             }}
                                           >
                                             Отмена

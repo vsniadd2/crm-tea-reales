@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { normalizeMiddleNameForDisplay } from '../utils/clientDisplay'
 import ClientStatusChip from './ClientStatusChip'
+import { formatOrderItemLabel } from '../utils/weightPricing'
 import './OrderDetailsModal.css'
 
 const OrderDetailsModal = ({ order, onClose, onMarkOperation, onStartReplacement, onDeleteOrder }) => {
@@ -112,7 +113,7 @@ const OrderDetailsModal = ({ order, onClose, onMarkOperation, onStartReplacement
               <tbody>
                 {items.map((item, i) => (
                   <tr key={i}>
-                    <td>{item.product_name}</td>
+                    <td>{formatOrderItemLabel(item)}</td>
                     <td className="mono">{parseFloat(item.product_price || 0).toFixed(2)} BYN</td>
                     <td>{item.quantity}</td>
                     <td className="mono">
@@ -341,7 +342,7 @@ const OrderDetailsModal = ({ order, onClose, onMarkOperation, onStartReplacement
                   <tbody>
                     {order.items.map((item, index) => (
                       <tr key={index}>
-                        <td className="order-item-name" data-label="Товар">{item.product_name}</td>
+                        <td className="order-item-name" data-label="Товар">{formatOrderItemLabel(item)}</td>
                         <td className="order-item-price mono" data-label="Цена">{parseFloat(item.product_price || 0).toFixed(2)} BYN</td>
                         <td className="order-item-quantity" data-label="Количество">{item.quantity}</td>
                         <td className="order-item-total mono" data-label="Сумма">

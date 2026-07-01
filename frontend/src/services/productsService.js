@@ -41,6 +41,7 @@ export async function getProductsTree() {
           id: p.id,
           name: p.name,
           price: Number(p.price),
+          base_weight_grams: p.base_weight_grams != null ? Number(p.base_weight_grams) : null,
           image_data: p.image_data || null
         }))
       }

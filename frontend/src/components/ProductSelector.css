@@ -422,6 +422,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 10px 14px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -433,6 +435,28 @@
   font-weight: 600;
   color: var(--text);
   font-size: 0.9rem;
+}
+
+.cart-item-grams {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin: 0 8px;
+}
+
+.cart-item-grams-input {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.cart-item-grams-label {
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .cart-item-controls {

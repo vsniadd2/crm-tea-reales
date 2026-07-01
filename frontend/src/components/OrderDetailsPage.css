@@ -143,13 +143,8 @@
   overflow: visible;
 }
 
-.donut-chart-container .recharts-wrapper {
+.donut-chart-container .donut-chart-canvas-wrap {
   overflow: visible;
-  outline: none !important;
-}
-
-.donut-chart-container .recharts-surface {
-  outline: none !important;
 }
 
 .day-top-products-legend {

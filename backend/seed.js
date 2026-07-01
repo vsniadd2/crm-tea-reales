@@ -23,11 +23,63 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function daysAgo(n) {
+function daysAgo(n, hour = null) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  d.setHours(randomInt(10, 20), randomInt(0, 59), 0, 0);
+  d.setHours(hour ?? randomInt(10, 20), randomInt(0, 59), 0, 0);
   return d;
+}
+
+/** Даты с уклоном в последние дни — для графиков по дням */
+function pickRecentDate() {
+  const bucket = randomInt(1, 100);
+  let daysBack;
+  if (bucket <= 45) daysBack = randomInt(0, 6);
+  else if (bucket <= 75) daysBack = randomInt(7, 13);
+  else if (bucket <= 92) daysBack = randomInt(14, 29);
+  else daysBack = randomInt(30, 90);
+  return daysAgo(daysBack);
+}
+
+const CHART_CATEGORY_NAMES = ['Листовой чай', 'Напитки в зале', 'Десерты к чаю'];
+
+const PAYMENT_OPTIONS = [
+  { method: 'cash', weight: 3 },
+  { method: 'card', weight: 4 },
+  { method: 'mixed', weight: 2 }
+];
+
+function pickPaymentMethod(finalAmount) {
+  const totalWeight = PAYMENT_OPTIONS.reduce((sum, opt) => sum + opt.weight, 0);
+  let roll = Math.random() * totalWeight;
+  for (const opt of PAYMENT_OPTIONS) {
+    roll -= opt.weight;
+    if (roll <= 0) {
+      if (opt.method === 'mixed') {
+        const cashPart = Math.round(finalAmount * (randomInt(25, 75) / 100) * 100) / 100;
+        const cardPart = Math.round((finalAmount - cashPart) * 100) / 100;
+        return { paymentMethod: 'mixed', cashPart, cardPart };
+      }
+      return { paymentMethod: opt.method, cashPart: null, cardPart: null };
+    }
+  }
+  return { paymentMethod: 'cash', cashPart: null, cardPart: null };
+}
+
+function pickProducts(products, productsByCategory, { categoryName = null, minItems = 1, maxItems = 3 } = {}) {
+  const pool = categoryName && productsByCategory[categoryName]?.length
+    ? productsByCategory[categoryName]
+    : products;
+  const itemCount = randomInt(minItems, Math.min(maxItems, pool.length));
+  const picked = [];
+  const used = new Set();
+  while (picked.length < itemCount && used.size < pool.length) {
+    const p = randomItem(pool);
+    if (used.has(p.id)) continue;
+    used.add(p.id);
+    picked.push({ ...p, quantity: randomInt(1, 3) });
+  }
+  return picked;
 }
 
 async function ensureUniqueIndexes() {
@@ -75,22 +127,24 @@ async function upsertProduct({
   price,
   description = null,
   displayOrder = 0,
-  tags = []
+  tags = [],
+  baseWeightGrams = null
 }) {
   const tagsStr = Array.isArray(tags) ? tags.join(',') : (tags || '');
   const res = await pool.query(
     `
-      INSERT INTO products (subcategory_id, name, price, description, display_order, tags)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO products (subcategory_id, name, price, description, display_order, tags, base_weight_grams)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (subcategory_id, name) DO UPDATE SET
         price = EXCLUDED.price,
         description = EXCLUDED.description,
         display_order = EXCLUDED.display_order,
         tags = EXCLUDED.tags,
+        base_weight_grams = EXCLUDED.base_weight_grams,
         updated_at = CURRENT_TIMESTAMP
-      RETURNING id, name, price
+      RETURNING id, name, price, base_weight_grams
     `,
-    [subcategoryId, name, Number.parseFloat(price) || 0, description, asInt(displayOrder) ?? 0, tagsStr]
+    [subcategoryId, name, Number.parseFloat(price) || 0, description, asInt(displayOrder) ?? 0, tagsStr, asInt(baseWeightGrams)]
   );
   return res.rows[0];
 }
@@ -99,7 +153,7 @@ const CATEGORY_ICONS = {
   leafTea: 'https://api.iconify.design/mdi/leaf.svg?color=%234d7a42',
   hallDrinks: 'https://api.iconify.design/mdi/glass-mug-variant.svg?color=%236fa85e',
   desserts: 'https://api.iconify.design/mdi/cake-variant.svg?color=%23b45309',
-  tableware: 'https://api.iconify.design/mdi/teapot.svg?color=%2378716c'
+  tableware: 'https://api.iconify.design/mdi/kettle.svg?color=%2378716c'
 };
 
 const TEA_CATALOG = [
@@ -109,35 +163,36 @@ const TEA_CATALOG = [
       {
         name: 'Зелёный чай',
         products: [
-          { name: 'Сенча', price: 12.5, description: 'Японский зелёный чай, свежий травяной вкус', tags: ['чай', 'зелёный'] },
-          { name: 'Ганпаудер', price: 14.0, description: 'Китайский зелёный чай с округлым вкусом', tags: ['чай', 'зелёный'] },
-          { name: 'Матча Ceremonial', price: 28.0, description: 'Порошковый чай для церемонии и латте', tags: ['чай', 'матча'] },
-          { name: 'Жасминовый зелёный', price: 13.5, description: 'Аромат жасмина, мягкое послевкусие', tags: ['чай', 'зелёный', 'ароматизированный'] }
+          { name: 'Сенча', price: 12.5, baseWeightGrams: 100, description: 'Японский зелёный чай, свежий травяной вкус', tags: ['чай', 'зелёный'] },
+          { name: 'Ганпаудер', price: 14.0, baseWeightGrams: 100, description: 'Китайский зелёный чай с округлым вкусом', tags: ['чай', 'зелёный'] },
+          { name: 'Матча Ceremonial', price: 28.0, baseWeightGrams: 100, description: 'Порошковый чай для церемонии и латте', tags: ['чай', 'матча'] },
+          { name: 'Жасминовый зелёный', price: 13.5, baseWeightGrams: 100, description: 'Аромат жасмина, мягкое послевкусие', tags: ['чай', 'зелёный', 'ароматизированный'] },
+          { name: 'Хугга бугга', price: 60.0, baseWeightGrams: 100, description: 'Тестовый товар для проверки граммовки в заказе', tags: ['чай', 'тест'] }
         ]
       },
       {
         name: 'Чёрный чай',
         products: [
-          { name: 'Ассам', price: 11.0, description: 'Малабарский чёрный чай, насыщенный и крепкий', tags: ['чай', 'чёрный'] },
-          { name: 'Дарджилинг', price: 16.5, description: '«Шампанское среди чаёв», muscatel-ноты', tags: ['чай', 'чёрный'] },
-          { name: 'Earl Grey', price: 12.0, description: 'Чёрный чай с маслом бергамота', tags: ['чай', 'чёрный', 'ароматизированный'] },
-          { name: 'English Breakfast', price: 10.5, description: 'Купаж для утренней чашки', tags: ['чай', 'чёрный'] }
+          { name: 'Ассам', price: 11.0, baseWeightGrams: 100, description: 'Малабарский чёрный чай, насыщенный и крепкий', tags: ['чай', 'чёрный'] },
+          { name: 'Дарджилинг', price: 16.5, baseWeightGrams: 100, description: '«Шампанское среди чаёв», muscatel-ноты', tags: ['чай', 'чёрный'] },
+          { name: 'Earl Grey', price: 12.0, baseWeightGrams: 100, description: 'Чёрный чай с маслом бергамота', tags: ['чай', 'чёрный', 'ароматизированный'] },
+          { name: 'English Breakfast', price: 10.5, baseWeightGrams: 100, description: 'Купаж для утренней чашки', tags: ['чай', 'чёрный'] }
         ]
       },
       {
         name: 'Улун',
         products: [
-          { name: 'Те Гуань Инь', price: 18.0, description: 'Классический тайваньский улун', tags: ['чай', 'улун'] },
-          { name: 'Молочный улун', price: 15.0, description: 'Сливочные ноты, лёгкая сладость', tags: ['чай', 'улун'] },
-          { name: 'Da Hong Pao', price: 32.0, description: 'Премиальный уишаньский улун', tags: ['чай', 'улун', 'премиум'] }
+          { name: 'Те Гуань Инь', price: 18.0, baseWeightGrams: 100, description: 'Классический тайваньский улун', tags: ['чай', 'улун'] },
+          { name: 'Молочный улун', price: 15.0, baseWeightGrams: 100, description: 'Сливочные ноты, лёгкая сладость', tags: ['чай', 'улун'] },
+          { name: 'Da Hong Pao', price: 32.0, baseWeightGrams: 100, description: 'Премиальный уишаньский улун', tags: ['чай', 'улун', 'премиум'] }
         ]
       },
       {
         name: 'Белый и пуэр',
         products: [
-          { name: 'Бай Му Дань', price: 19.0, description: 'Белый чай «белые брови»', tags: ['чай', 'белый'] },
-          { name: 'Шэн пуэр 2018', price: 22.0, description: 'Сырой пуэр, цветочный профиль', tags: ['чай', 'пуэр'] },
-          { name: 'Шу пуэр', price: 14.5, description: 'Выдержанный, землистый вкус', tags: ['чай', 'пуэр'] }
+          { name: 'Бай Му Дань', price: 19.0, baseWeightGrams: 100, description: 'Белый чай «белые брови»', tags: ['чай', 'белый'] },
+          { name: 'Шэн пуэр 2018', price: 22.0, baseWeightGrams: 100, description: 'Сырой пуэр, цветочный профиль', tags: ['чай', 'пуэр'] },
+          { name: 'Шу пуэр', price: 14.5, baseWeightGrams: 100, description: 'Выдержанный, землистый вкус', tags: ['чай', 'пуэр'] }
         ]
       }
     ]
@@ -193,9 +248,9 @@ const TEA_CATALOG = [
       {
         name: 'Наборы',
         products: [
-          { name: 'Набор пробников 6×10 г', price: 24.0, description: '6 сортов листового чая', tags: ['подарок', 'чай'] },
+          { name: 'Набор пробников 6×10 г', price: 24.0, baseWeightGrams: 60, description: '6 сортов листового чая', tags: ['подарок', 'чай'] },
           { name: 'Подарочный бокс «Утро с чаем»', price: 89.0, description: 'Чай, печенье, кружка', tags: ['подарок'] },
-          { name: 'Чай листовой 100 г (упаковка)', price: 18.0, description: 'На выбор сорт из каталога', tags: ['чай', 'розница'] }
+          { name: 'Чай листовой 100 г (упаковка)', price: 18.0, baseWeightGrams: 100, description: 'На выбор сорт из каталога', tags: ['чай', 'розница'] }
         ]
       }
     ]
@@ -229,9 +284,13 @@ const TEST_CLIENT_ID_PREFIX = '+3752910000';
 
 async function seedProducts() {
   const allProducts = [];
+  const productsByCategory = {};
 
   for (const block of TEA_CATALOG) {
     const categoryId = await upsertCategory(block.category);
+    const categoryName = block.category.name;
+    if (!productsByCategory[categoryName]) productsByCategory[categoryName] = [];
+
     for (let si = 0; si < block.subcategories.length; si++) {
       const sub = block.subcategories[si];
       const subcategoryId = await upsertSubcategory({
@@ -247,14 +306,22 @@ async function seedProducts() {
           price: p.price,
           description: p.description,
           displayOrder: (pi + 1) * 10,
-          tags: p.tags
+          tags: p.tags,
+          baseWeightGrams: p.baseWeightGrams ?? null
         });
-        allProducts.push(product);
+        const enriched = {
+          ...product,
+          categoryId,
+          categoryName,
+          trackCharts: !!block.category.trackCharts
+        };
+        allProducts.push(enriched);
+        productsByCategory[categoryName].push(enriched);
       }
     }
   }
 
-  return allProducts;
+  return { allProducts, productsByCategory };
 }
 
 async function resetClientsAndOrders() {
@@ -302,43 +369,73 @@ async function clientHasTransactions(clientDbId) {
   return res.rows.length > 0;
 }
 
-async function createPurchase({ clientId, products, pointId, createdAt }) {
-  const itemCount = randomInt(1, Math.min(3, products.length));
-  const picked = [];
-  const used = new Set();
-  while (picked.length < itemCount) {
-    const p = randomItem(products);
-    if (used.has(p.id)) continue;
-    used.add(p.id);
-    picked.push({ ...p, quantity: randomInt(1, 2) });
-  }
+async function createPurchase({
+  clientId,
+  products,
+  productsByCategory = null,
+  pointId,
+  createdAt,
+  categoryName = null,
+  paymentOverride = null,
+  minItems = 1,
+  maxItems = 3
+}) {
+  const picked = productsByCategory
+    ? pickProducts(products, productsByCategory, { categoryName, minItems, maxItems })
+    : pickProducts(products, {}, { minItems, maxItems });
 
   const amount = picked.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
   const discount = 0;
   const finalAmount = amount;
-  const paymentMethods = ['cash', 'card', 'card', 'cash'];
-  const paymentMethod = randomItem(paymentMethods);
+
+  let payment;
+  if (paymentOverride?.paymentMethod) {
+    if (paymentOverride.paymentMethod === 'mixed') {
+      if (paymentOverride.cashPart != null && paymentOverride.cardPart != null) {
+        payment = paymentOverride;
+      } else {
+        const cashPart = Math.round(finalAmount * (randomInt(25, 75) / 100) * 100) / 100;
+        const cardPart = Math.round((finalAmount - cashPart) * 100) / 100;
+        payment = { paymentMethod: 'mixed', cashPart, cardPart };
+      }
+    } else {
+      payment = { paymentMethod: paymentOverride.paymentMethod, cashPart: null, cardPart: null };
+    }
+  } else {
+    payment = pickPaymentMethod(finalAmount);
+  }
 
   const txRes = await pool.query(
     `
       INSERT INTO transactions (
         client_id, amount, discount, final_amount,
-        payment_method, point_id, created_at
+        payment_method, cash_part, card_part, point_id, created_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id
     `,
-    [clientId, amount, discount, finalAmount, paymentMethod, pointId, createdAt]
+    [
+      clientId,
+      amount,
+      discount,
+      finalAmount,
+      payment.paymentMethod,
+      payment.cashPart,
+      payment.cardPart,
+      pointId,
+      createdAt
+    ]
   );
   const transactionId = txRes.rows[0].id;
 
   for (const item of picked) {
+    const weightGrams = item.base_weight_grams != null ? asInt(item.base_weight_grams) : null;
     await pool.query(
       `
-        INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO transaction_items (transaction_id, product_id, product_name, product_price, quantity, weight_grams)
+        VALUES ($1, $2, $3, $4, $5, $6)
       `,
-      [transactionId, String(item.id), item.name, item.price, item.quantity]
+      [transactionId, String(item.id), item.name, item.price, item.quantity, weightGrams]
     );
   }
 
@@ -367,12 +464,61 @@ async function recalcClientTotals(clientDbId) {
   return { total, status };
 }
 
-async function seedClientsAndPurchases(products) {
-  const pointRes = await pool.query('SELECT id FROM points ORDER BY id LIMIT 1');
-  const pointId = pointRes.rows[0]?.id ?? 1;
+async function seedChartPurchases({ products, productsByCategory, points, clientIds }) {
+  const paymentCycle = ['cash', 'card', 'mixed'];
+  let purchasesCreated = 0;
+
+  for (let daysBack = 0; daysBack <= 20; daysBack++) {
+    const txPerDay = randomInt(2, 5);
+    for (let t = 0; t < txPerDay; t++) {
+      const categoryName = CHART_CATEGORY_NAMES[(daysBack + t) % CHART_CATEGORY_NAMES.length];
+      const pointId = points[(daysBack + t) % points.length].id;
+      const clientId = t % 5 === 0 ? null : randomItem(clientIds);
+      const createdAt = daysAgo(daysBack, 9 + (t % 4) * 3 + randomInt(0, 1));
+      const paymentMethod = paymentCycle[(daysBack + t) % paymentCycle.length];
+      const paymentOverride = { paymentMethod };
+
+      await createPurchase({
+        clientId,
+        products,
+        productsByCategory,
+        pointId,
+        createdAt,
+        categoryName,
+        paymentOverride,
+        minItems: 1,
+        maxItems: 4
+      });
+      purchasesCreated++;
+    }
+  }
+
+  for (let i = 0; i < 15; i++) {
+    await createPurchase({
+      clientId: i % 3 === 0 ? null : randomItem(clientIds),
+      products,
+      productsByCategory,
+      pointId: points[i % points.length].id,
+      createdAt: pickRecentDate(),
+      categoryName: randomItem(CHART_CATEGORY_NAMES),
+      paymentOverride: { paymentMethod: 'mixed' },
+      minItems: 2,
+      maxItems: 4
+    });
+    purchasesCreated++;
+  }
+
+  return purchasesCreated;
+}
+
+async function seedClientsAndPurchases(products, productsByCategory) {
+  const pointRes = await pool.query('SELECT id, name FROM points ORDER BY id');
+  const points = pointRes.rows.length ? pointRes.rows : [{ id: 1, name: 'default' }];
+  const pickPointId = () => randomItem(points).id;
 
   let clientsInserted = 0;
   let purchasesCreated = 0;
+  const clientIds = [];
 
   for (const mock of MOCK_CLIENTS) {
     if (mock.clientId == null) {
@@ -404,14 +550,17 @@ async function seedClientsAndPurchases(products) {
         [mock.firstName, mock.lastName, mock.middleName, daysAgo(randomInt(60, 180))]
       );
       clientsInserted++;
+      clientIds.push(ins.rows[0].id);
       if (RESET || !(await clientHasTransactions(ins.rows[0].id))) {
-        const purchaseCount = randomInt(1, 2);
+        const purchaseCount = randomInt(2, 4);
         for (let i = 0; i < purchaseCount; i++) {
           await createPurchase({
             clientId: ins.rows[0].id,
             products,
-            pointId,
-            createdAt: daysAgo(randomInt(5, 90))
+            productsByCategory,
+            pointId: pickPointId(),
+            createdAt: pickRecentDate(),
+            categoryName: i % 2 === 0 ? randomItem(CHART_CATEGORY_NAMES) : null
           });
           purchasesCreated++;
         }
@@ -422,21 +571,39 @@ async function seedClientsAndPurchases(products) {
 
     const row = await upsertClient(mock);
     clientsInserted++;
+    clientIds.push(row.id);
 
     const needsPurchases = RESET || !(await clientHasTransactions(row.id));
     if (!needsPurchases) continue;
 
-    const purchaseCount = mock.totalSpent > 400 ? randomInt(4, 8) : randomInt(2, 5);
+    const purchaseCount = mock.totalSpent > 400 ? randomInt(8, 14) : randomInt(4, 8);
     for (let i = 0; i < purchaseCount; i++) {
       await createPurchase({
         clientId: row.id,
         products,
-        pointId,
-        createdAt: daysAgo(randomInt(3, 300))
+        productsByCategory,
+        pointId: pickPointId(),
+        createdAt: pickRecentDate(),
+        categoryName: i % 3 === 0 ? randomItem(CHART_CATEGORY_NAMES) : null,
+        minItems: 1,
+        maxItems: 4
       });
       purchasesCreated++;
     }
     await recalcClientTotals(row.id);
+  }
+
+  if (RESET && clientIds.length > 0) {
+    const chartPurchases = await seedChartPurchases({
+      products,
+      productsByCategory,
+      points,
+      clientIds
+    });
+    purchasesCreated += chartPurchases;
+    for (const clientDbId of clientIds) {
+      await recalcClientTotals(clientDbId);
+    }
   }
 
   return { clientsInserted, purchasesCreated };
@@ -452,11 +619,11 @@ async function seed() {
   }
 
   console.log('📦 Товары и категории...');
-  const products = await seedProducts();
+  const { allProducts: products, productsByCategory } = await seedProducts();
   console.log(`   ✓ ${products.length} товаров в каталоге`);
 
   console.log('👥 Клиенты и покупки...');
-  const { clientsInserted, purchasesCreated } = await seedClientsAndPurchases(products);
+  const { clientsInserted, purchasesCreated } = await seedClientsAndPurchases(products, productsByCategory);
   console.log(`   ✓ обработано клиентов: ${clientsInserted}, создано покупок: ${purchasesCreated}`);
 
   const summary = await pool.query(

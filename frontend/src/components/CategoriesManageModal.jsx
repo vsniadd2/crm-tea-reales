@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useDataRefresh } from '../contexts/DataRefreshContext'
 import ConfirmDialog from './ConfirmDialog'
 import ImageUploader from './ImageUploader'
+import { MAX_IMAGE_UPLOAD_BYTES, MAX_IMAGE_UPLOAD_MB, validateImageDataUrlSize } from '../config/upload'
 import './CategoriesManageModal.css'
 
 const CategoriesManageModal = ({ onClose }) => {
@@ -24,10 +25,46 @@ const CategoriesManageModal = ({ onClose }) => {
   const [editProduct, setEditProduct] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState({ type: null, id: null, name: '' })
   const DEFAULT_CATEGORY_COLOR = '#6b7280'
-  const [formData, setFormData] = useState({ name: '', displayOrder: 0, price: '', subcategoryId: '', categoryId: '', imageUrl: '', trackCharts: false })
+  const [formData, setFormData] = useState({ name: '', displayOrder: 0, price: '', baseWeightGrams: '', subcategoryId: '', categoryId: '', imageUrl: '', trackCharts: false })
   const [imagePreview, setImagePreview] = useState(null)
   const [saving, setSaving] = useState(false)
   const [imageCompressing, setImageCompressing] = useState(false)
+
+  const EMPTY_PRODUCT_FORM = { name: '', price: '', baseWeightGrams: '', displayOrder: 0, imageUrl: '' }
+
+  const closeOtherEdits = () => {
+    setEditCategory(null)
+    setEditSubcategory(null)
+    setEditProduct(null)
+    setAddSubcategory(null)
+    setAddCategory(false)
+  }
+
+  const openAddProductForm = (subId) => {
+    closeOtherEdits()
+    setAddProduct(subId)
+    setFormData(EMPTY_PRODUCT_FORM)
+    setImagePreview(null)
+  }
+
+  const openEditProductForm = (prod) => {
+    closeOtherEdits()
+    setAddProduct(null)
+    setEditProduct(prod)
+    setFormData({
+      name: prod.name,
+      price: String(prod.price ?? ''),
+      baseWeightGrams: prod.base_weight_grams != null ? String(prod.base_weight_grams) : '',
+      displayOrder: prod.display_order || 0,
+      imageUrl: prod.image_data || ''
+    })
+    setImagePreview(prod.image_data || null)
+  }
+
+  const handleGramsInputChange = (value) => {
+    const digits = value.replace(/\D/g, '')
+    setFormData(prev => ({ ...prev, baseWeightGrams: digits }))
+  }
 
   const loadCategories = useCallback(async () => {
     try {
@@ -233,8 +270,8 @@ const CategoriesManageModal = ({ onClose }) => {
   // Функция для обработки выбранного файла из ImageUploader
   const handleImageSelect = async (file) => {
     setError(null)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Размер файла не должен превышать 5 МБ')
+    if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      setError(`Размер файла не должен превышать ${MAX_IMAGE_UPLOAD_MB} МБ`)
       return
     }
     if (!file.type.startsWith('image/')) {
@@ -245,6 +282,11 @@ const CategoriesManageModal = ({ onClose }) => {
     setImageCompressing(true)
     try {
       const compressedBase64 = await compressImage(file, 800, 800, 0.85)
+      const sizeErr = validateImageDataUrlSize(compressedBase64)
+      if (sizeErr) {
+        setError(sizeErr)
+        return
+      }
       setFormData(prev => ({ ...prev, imageUrl: compressedBase64 }))
       setImagePreview(compressedBase64)
     } catch (err) {
@@ -261,29 +303,49 @@ const CategoriesManageModal = ({ onClose }) => {
     }
   }
 
+  const isProductFormValid = () => {
+    const price = parseFloat(formData.price)
+    if (!formData.name.trim() || !Number.isFinite(price) || price < 0) return false
+    if (!editProduct) {
+      const grams = parseInt(formData.baseWeightGrams, 10)
+      return Number.isFinite(grams) && grams > 0
+    }
+    if (formData.baseWeightGrams === '' || formData.baseWeightGrams == null) return true
+    const grams = parseInt(formData.baseWeightGrams, 10)
+    return Number.isFinite(grams) && grams > 0
+  }
+
   const handleSaveProduct = async () => {
+    if (!isProductFormValid()) {
+      setError('Укажите название, цену и граммовку (положительное число)')
+      return
+    }
     setSaving(true)
     try {
       const subcategoryId = editProduct ? editProduct.subcategory_id : addProduct
+      const gramsRaw = formData.baseWeightGrams
+      const productPayload = {
+        name: formData.name,
+        price: parseFloat(formData.price) || 0,
+        imageUrl: formData.imageUrl || null,
+        displayOrder: editProduct ? (editProduct.display_order ?? 0) : 0
+      }
+      if (gramsRaw !== '' && gramsRaw != null) {
+        productPayload.baseWeightGrams = parseInt(gramsRaw, 10)
+      } else if (!editProduct) {
+        productPayload.baseWeightGrams = parseInt(gramsRaw, 10)
+      }
       if (editProduct) {
-        await adminProductsService.updateProduct(editProduct.id, {
-          name: formData.name,
-          price: parseFloat(formData.price) || 0,
-          imageUrl: formData.imageUrl || null,
-          displayOrder: editProduct.display_order ?? 0
-        })
+        await adminProductsService.updateProduct(editProduct.id, productPayload)
         setEditProduct(null)
       } else {
         await adminProductsService.createProduct({
           subcategoryId,
-          name: formData.name,
-          price: parseFloat(formData.price) || 0,
-          imageUrl: formData.imageUrl || null,
-          displayOrder: 0
+          ...productPayload
         })
         setAddProduct(null)
       }
-      setFormData({ name: '', price: '', displayOrder: 0, imageUrl: '' })
+      setFormData({ name: '', price: '', baseWeightGrams: '', displayOrder: 0, imageUrl: '' })
       setImagePreview(null)
       loadProducts(subcategoryId)
       // Обновляем данные в других компонентах без перезагрузки страницы
@@ -496,7 +558,7 @@ const CategoriesManageModal = ({ onClose }) => {
                                     </div>
                                     {expandedSubcategory === sub.id && (
                                       <div className="categories-manage-children">
-                                        <button type="button" className="categories-manage-btn-add-sm" onClick={() => { setAddProduct(sub.id); setFormData({ name: '', price: '', displayOrder: 0, imageUrl: '' }); setImagePreview(null) }}>+ Товар</button>
+                                        <button type="button" className="categories-manage-btn-add-sm" onClick={() => openAddProductForm(sub.id)}>+ Товар</button>
                                         {addProduct === sub.id && (
                                           <div className="categories-manage-form-block">
                                             <div className="categories-manage-form-title">Новый товар</div>
@@ -510,11 +572,14 @@ const CategoriesManageModal = ({ onClose }) => {
                                                 <input type="number" step="0.01" min="0" placeholder="0.00" value={formData.price} onChange={e => setFormData(prev => ({ ...prev, price: e.target.value }))} />
                                               </div>
                                               <div className="categories-manage-form-group">
-                                                <label>Фотография товара (необязательно, макс. 5 МБ)</label>
+                                                <label>Граммовка (г) — базовый вес для указанной цены (например 100)</label>
+                                                <input type="text" inputMode="numeric" pattern="[0-9]*" placeholder="100" value={formData.baseWeightGrams} onChange={e => handleGramsInputChange(e.target.value)} />
+                                              </div>
+                                              <div className="categories-manage-form-group">
+                                                <label>Фотография товара (необязательно, макс. {MAX_IMAGE_UPLOAD_MB} МБ)</label>
                                                 <ImageUploader
                                                   onImageSelect={handleImageSelect}
                                                   currentImage={imagePreview}
-                                                  maxSizeMB={5}
                                                   disabled={imageCompressing}
                                                 />
                                                 {imagePreview && (
@@ -540,7 +605,7 @@ const CategoriesManageModal = ({ onClose }) => {
                                                 )}
                                               </div>
                                               <div className="categories-manage-form-actions">
-                                                <button type="button" className="categories-manage-btn-save" onClick={handleSaveProduct} disabled={saving || imageCompressing || !formData.name.trim()}>Сохранить</button>
+                                                <button type="button" className="categories-manage-btn-save" onClick={handleSaveProduct} disabled={saving || imageCompressing || !isProductFormValid()}>Сохранить</button>
                                                 <button type="button" className="categories-manage-btn-cancel" onClick={() => { setAddProduct(null); setImagePreview(null) }}>Отмена</button>
                                               </div>
                                             </div>
@@ -562,14 +627,17 @@ const CategoriesManageModal = ({ onClose }) => {
                                                       <input type="number" step="0.01" min="0" value={formData.price} onChange={e => setFormData(prev => ({ ...prev, price: e.target.value }))} />
                                                     </div>
                                                     <div className="categories-manage-form-group">
-                                                      <label>Фотография товара (необязательно, макс. 5 МБ)</label>
+                                                      <label>Граммовка (г)</label>
+                                                      <input type="text" inputMode="numeric" pattern="[0-9]*" value={formData.baseWeightGrams} onChange={e => handleGramsInputChange(e.target.value)} />
+                                                    </div>
+                                                    <div className="categories-manage-form-group">
+                                                      <label>Фотография товара (необязательно, макс. {MAX_IMAGE_UPLOAD_MB} МБ)</label>
                                                       <ImageUploader
                                                         onImageSelect={handleImageSelect}
-                                                        currentImage={imagePreview || prod.image_data}
-                                                        maxSizeMB={5}
+                                                        currentImage={imagePreview}
                                                         disabled={imageCompressing}
                                                       />
-                                                      {(imagePreview || prod.image_data) && (
+                                                      {imagePreview && (
                                                         <button 
                                                           type="button" 
                                                           onClick={() => { 
@@ -592,7 +660,7 @@ const CategoriesManageModal = ({ onClose }) => {
                                                       )}
                                                     </div>
                                                     <div className="categories-manage-form-actions">
-                                                      <button type="button" className="categories-manage-btn-save" onClick={handleSaveProduct} disabled={saving || imageCompressing}>Сохранить</button>
+                                                      <button type="button" className="categories-manage-btn-save" onClick={handleSaveProduct} disabled={saving || imageCompressing || !isProductFormValid()}>Сохранить</button>
                                                       <button type="button" className="categories-manage-btn-cancel" onClick={() => { setEditProduct(null); setImagePreview(null) }}>Отмена</button>
                                                     </div>
                                                   </div>
@@ -605,9 +673,12 @@ const CategoriesManageModal = ({ onClose }) => {
                                                     )}
                                                     <span className="categories-manage-name">{prod.name}</span>
                                                   </div>
-                                                  <span className="categories-manage-price">{Number(prod.price).toFixed(2)} BYN</span>
+                                                  <span className="categories-manage-price">
+                                                    {prod.base_weight_grams ? `${prod.base_weight_grams}г — ` : ''}
+                                                    {Number(prod.price).toFixed(2)} BYN
+                                                  </span>
                                                   <span className="categories-manage-actions-row">
-                                                    <button type="button" className="categories-manage-btn-sm" onClick={() => { setEditProduct(prod); setFormData({ name: prod.name, price: prod.price, displayOrder: prod.display_order || 0, imageUrl: prod.image_data || '' }); setImagePreview(prod.image_data || null) }}>Изменить</button>
+                                                    <button type="button" className="categories-manage-btn-sm" onClick={() => openEditProductForm(prod)}>Изменить</button>
                                                     <button type="button" className="categories-manage-btn-sm danger" onClick={() => setConfirmDelete({ type: 'product', id: prod.id, name: prod.name, subcategoryId: sub.id })}>Удалить</button>
                                                   </span>
                                                 </div>

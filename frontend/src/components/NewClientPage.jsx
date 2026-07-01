@@ -22,6 +22,7 @@ import {
   formatEmployeeDiscountHint
 } from '../utils/employeeDiscount'
 import { withAuthRetry } from '../utils/withAuthRetry'
+import { cartItemToOrderLine } from '../utils/weightPricing'
 import './NewClientPage.css'
 
 const NewClientPage = () => {
@@ -177,6 +178,12 @@ const NewClientPage = () => {
     setCheckedClient(client)
     setSearchQuery('')
     setSearchResults([])
+    const priceNum = Number.parseFloat(newPrice) || 0
+    if (priceNum > 0) {
+      recalculateDiscount(client, priceNum)
+    } else {
+      setDiscountInfo(null)
+    }
   }
 
   const handleChange = (e) => {
@@ -200,9 +207,13 @@ const NewClientPage = () => {
   const baseFinalBeforeEmployee = useMemo(() => {
     const price = productsTotal > 0 ? productsTotal : (Number.parseFloat(formData.price) || 0)
     if (price <= 0) return null
-    if (discountInfo) return discountInfo.finalPrice
+    if (discountInfo?.hasDiscount) return discountInfo.finalPrice
+    if (checkedClient) {
+      const discountPercent = effectiveDiscountPercentForPurchase(checkedClient, price)
+      if (discountPercent > 0) return priceAfterPercentDiscount(price, discountPercent)
+    }
     return price
-  }, [productsTotal, formData.price, discountInfo])
+  }, [productsTotal, formData.price, discountInfo, checkedClient])
 
   const employeeDiscountAmount = calcEmployeeDiscountAmount(baseFinalBeforeEmployee, employeeDiscount)
 
@@ -428,12 +439,7 @@ const NewClientPage = () => {
           showNotification('Укажите цену или выберите товары из каталога', 'error')
           return
         }
-        const items = Object.values(selectedProducts).map(item => ({
-          productId: item.product.id,
-          productName: item.product.name,
-          productPrice: item.product.price,
-          quantity: item.quantity
-        }))
+        const items = Object.values(selectedProducts).map(cartItemToOrderLine)
         const { amount: empAmount, finalAmount } = applyEmployeeDiscount(price, employeeDiscount)
         setPendingOrderData({ type: 'anonymous', price, items, employeeDiscount: empAmount, finalAmount })
         setShowPaymentModal(true)
@@ -461,12 +467,7 @@ const NewClientPage = () => {
             
             // Если клиент найден и указана цена, добавляем покупку
             if (price > 0) {
-              const items = Object.values(selectedProducts).map(item => ({
-                productId: item.product.id,
-                productName: item.product.name,
-                productPrice: item.product.price,
-                quantity: item.quantity
-              }))
+              const items = Object.values(selectedProducts).map(cartItemToOrderLine)
               const afterDisc = priceAfterPercentDiscount(price, discPct)
               const { amount: empAmount, finalAmount } = applyEmployeeDiscount(afterDisc, employeeDiscount)
               setPendingOrderData({ 
@@ -497,12 +498,7 @@ const NewClientPage = () => {
       const finalPrice = productsTotal > 0 ? productsTotal : (parseFloat(formData.price) || 0)
       
       // Подготавливаем товары для отправки
-      const items = Object.values(selectedProducts).map(item => ({
-        productId: item.product.id,
-        productName: item.product.name,
-        productPrice: item.product.price,
-        quantity: item.quantity
-      }))
+      const items = Object.values(selectedProducts).map(cartItemToOrderLine)
       
       const { amount: empAmount, finalAmount } = applyEmployeeDiscount(finalPrice, employeeDiscount)
       setPendingOrderData({
@@ -686,8 +682,8 @@ const NewClientPage = () => {
                 </div>
               </div>
               </div>
-              <div className="form-row form-row-price-anonymous">
-                <div className="input-group">
+              <div className="form-row-price-anonymous">
+                <div className="input-group input-group-price">
                   <label>{isAnonymousForm ? 'Цена (или выберите товары)' : 'Цена'}</label>
                   <input
                     type="number"
@@ -698,6 +694,32 @@ const NewClientPage = () => {
                     onChange={handleChange}
                     disabled={loading}
                   />
+                </div>
+                <div className="input-group input-group-total">
+                  <label>Итого к оплате</label>
+                  <input
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    className="payment-total-input"
+                    value={displayFinalForPay != null ? `${displayFinalForPay.toFixed(2)} BYN` : ''}
+                    placeholder="—"
+                    aria-live="polite"
+                  />
+                  {displayFinalForPay != null && (discountInfo?.hasDiscount || employeeDiscountAmount > 0) && (
+                    <div className="payment-total-breakdown">
+                      {discountInfo?.hasDiscount && (
+                        <span className="payment-total-breakdown-item">
+                          Было {discountInfo.originalPrice.toFixed(2)} BYN (−{discountInfo.discount}%)
+                        </span>
+                      )}
+                      {employeeDiscountAmount > 0 && (
+                        <span className="payment-total-breakdown-item">
+                          {formatEmployeeDiscountBadge(employeeDiscountAmount)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -713,39 +735,6 @@ const NewClientPage = () => {
                       <> | Персональная скидка: {personalDiscountPercent(checkedClient)}%</>
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* Показываем информацию о цене и скидке */}
-              {!isAnonymousForm && checkedClient && (productsTotal > 0 || parseFloat(formData.price) > 0) && (
-                <div className="discount-preview" style={{ marginTop: 12 }}>
-                  {discountInfo && discountInfo.hasDiscount ? (
-                    <>
-                      <div className="discount-badge">
-                        <span>Скидка {discountInfo.discount}%</span>
-                      </div>
-                      <div className="price-preview">
-                        <div className="price-original">
-                          {discountInfo.originalPrice.toFixed(2)} BYN
-                        </div>
-                        <div className="price-final">
-                          {(displayFinalForPay ?? discountInfo.finalPrice).toFixed(2)} BYN
-                          {employeeDiscountAmount > 0 && (
-                            <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                      <div className="price-preview">
-                        <div className="price-final">
-                          {(displayFinalForPay ?? (productsTotal > 0 ? productsTotal : Number.parseFloat(formData.price) || 0)).toFixed(2)} BYN
-                          {employeeDiscountAmount > 0 && (
-                            <span className="employee-discount-badge">{formatEmployeeDiscountBadge(employeeDiscountAmount)}</span>
-                          )}
-                        </div>
-                      </div>
-                  )}
                 </div>
               )}
 

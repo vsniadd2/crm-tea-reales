@@ -1,0 +1,129 @@
+.donut-chart-canvas-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.donut-chart-canvas-wrap--enter {
+  animation: donut-chart-wrap-enter 0.55s ease-out both;
+}
+
+@keyframes donut-chart-wrap-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.chart-section--enter {
+  animation: chart-section-enter 0.5s ease-out both;
+}
+
+@keyframes chart-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.legend-item--enter {
+  animation: legend-item-enter 0.45s ease-out both;
+  animation-delay: calc(0.12s + var(--legend-i, 0) * 0.06s);
+}
+
+@keyframes legend-item-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.donut-chart-canvas-wrap canvas {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.donut-chart-canvas-wrap canvas:focus,
+.donut-chart-canvas-wrap canvas:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.chart-section--full {
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-soft);
+}
+
+.day-items-count {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.day-top-products-content--full {
+  align-items: stretch;
+}
+
+.donut-chart-container--full {
+  max-width: 380px;
+  flex: 0 0 380px;
+}
+
+.day-top-products-legend--scrollable {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+  gap: 8px;
+}
+
+.day-top-products-legend--scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.day-top-products-legend--scrollable::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.legend-item--compact {
+  padding: 8px 10px;
+}
+
+.legend-item--compact .legend-percentage {
+  font-size: 0.95rem;
+}
+
+.legend-item--compact .legend-name {
+  font-size: 0.85rem;
+}
+
+.legend-item--compact .legend-revenue {
+  font-size: 0.8rem;
+}
+
+.legend-qty {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .donut-chart-container--full {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  .day-top-products-legend--scrollable {
+    max-height: 280px;
+  }
+}

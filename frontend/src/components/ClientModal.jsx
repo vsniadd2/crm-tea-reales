@@ -9,6 +9,7 @@ import { withAuthRetry } from '../utils/withAuthRetry'
 import ProductSelector from './ProductSelector'
 import PaymentMethodModal from './PaymentMethodModal'
 import { buildPurchaseDiscountInfo, effectiveDiscountPercentForPurchase, priceAfterPercentDiscount, formatClientStatus } from '../utils/clientDiscount'
+import { cartItemToOrderLine } from '../utils/weightPricing'
 import {
   applyEmployeeDiscount,
   calcEmployeeDiscountAmount,
@@ -189,12 +190,7 @@ const ClientModal = ({ onClose }) => {
             
             // Если клиент найден и указана цена, добавляем покупку
             if (price > 0) {
-              const items = Object.values(selectedProducts).map(item => ({
-                productId: item.product.id,
-                productName: item.product.name,
-                productPrice: item.product.price,
-                quantity: item.quantity
-              }))
+              const items = Object.values(selectedProducts).map(cartItemToOrderLine)
               const afterDisc = priceAfterPercentDiscount(price, discPct)
               const { amount: empAmount, finalAmount } = applyEmployeeDiscount(afterDisc, employeeDiscount)
               setPendingOrderData({
@@ -225,12 +221,7 @@ const ClientModal = ({ onClose }) => {
       const finalPrice = productsTotal > 0 ? productsTotal : (parseFloat(formData.price) || 0)
       
       // Подготавливаем товары для отправки
-      const items = Object.values(selectedProducts).map(item => ({
-        productId: item.product.id,
-        productName: item.product.name,
-        productPrice: item.product.price,
-        quantity: item.quantity
-      }))
+      const items = Object.values(selectedProducts).map(cartItemToOrderLine)
       
       const { amount: empAmount, finalAmount } = applyEmployeeDiscount(finalPrice, employeeDiscount)
       setPendingOrderData({
