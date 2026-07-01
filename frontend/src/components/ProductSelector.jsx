@@ -113,12 +113,25 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   }
 
   const handleAddProduct = (product) => {
+    const baseGrams = getBaseWeightGrams(product)
     setCart(prev => {
       const newCart = { ...prev }
       if (newCart[product.id]) {
-        newCart[product.id] = {
-          ...newCart[product.id],
-          quantity: newCart[product.id].quantity + 1
+        if (baseGrams) {
+          const current = newCart[product.id].grams ?? baseGrams
+          const newGrams = current + baseGrams
+          newCart[product.id] = {
+            ...newCart[product.id],
+            quantity: 1,
+            grams: newGrams,
+            gramsDraft: undefined,
+            unitPrice: getLineUnitPrice(product, newGrams)
+          }
+        } else {
+          newCart[product.id] = {
+            ...newCart[product.id],
+            quantity: newCart[product.id].quantity + 1
+          }
         }
       } else {
         newCart[product.id] = createCartEntry(product)
@@ -186,12 +199,28 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   const handleRemoveProduct = (productId) => {
     setCart(prev => {
       const newCart = { ...prev }
-      if (newCart[productId]) {
-        if (newCart[productId].quantity > 1) {
-          newCart[productId].quantity -= 1
-        } else {
+      const item = newCart[productId]
+      if (!item) return prev
+
+      const baseGrams = getBaseWeightGrams(item.product)
+      if (baseGrams) {
+        const current = item.grams ?? baseGrams
+        if (current <= baseGrams) {
           delete newCart[productId]
+        } else {
+          const newGrams = current - baseGrams
+          newCart[productId] = {
+            ...item,
+            quantity: 1,
+            grams: newGrams,
+            gramsDraft: undefined,
+            unitPrice: getLineUnitPrice(item.product, newGrams)
+          }
         }
+      } else if (item.quantity > 1) {
+        newCart[productId] = { ...item, quantity: item.quantity - 1 }
+      } else {
+        delete newCart[productId]
       }
       return newCart
     })
@@ -254,56 +283,87 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
   const cartItems = Object.values(cart)
   const cartTotal = cartItems.reduce((sum, item) => sum + getCartLineTotal(item), 0)
 
+  const renderItemControls = (product, { showPrice = false, priceClassName = '' } = {}) => {
+    const cartItem = cart[product.id]
+    const baseGrams = getBaseWeightGrams(product)
+
+    if (!cartItem) {
+      return (
+        <button
+          type="button"
+          className="product-btn-add"
+          onClick={() => handleAddProduct(product)}
+        >
+          Добавить
+        </button>
+      )
+    }
+
+    const displayGrams = cartItem.gramsDraft !== undefined
+      ? cartItem.gramsDraft
+      : String(cartItem.grams ?? baseGrams ?? '')
+
+    const stepTitle = baseGrams
+      ? `Шаг ±${baseGrams} г`
+      : undefined
+
+    return (
+      <div className="product-quantity-controls">
+        <button
+          type="button"
+          className="product-btn-minus"
+          onClick={() => handleRemoveProduct(product.id)}
+          title={stepTitle}
+        >
+          −
+        </button>
+        {baseGrams != null ? (
+          <div className="cart-item-grams">
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              className="cart-item-grams-input"
+              value={displayGrams}
+              onChange={(e) => handleGramsChange(product.id, e.target.value)}
+              onBlur={() => handleGramsBlur(product.id)}
+              aria-label={`Граммовка: ${product.name}`}
+            />
+            <span className="cart-item-grams-label">г</span>
+          </div>
+        ) : (
+          <span className="product-quantity">{cartItem.quantity}</span>
+        )}
+        <button
+          type="button"
+          className="product-btn-plus"
+          onClick={() => handleAddProduct(product)}
+          title={stepTitle}
+        >
+          +
+        </button>
+        {showPrice && (
+          <span className={`cart-item-price ${priceClassName}`.trim()}>
+            {getCartLineTotal(cartItem).toFixed(2)} BYN
+          </span>
+        )}
+      </div>
+    )
+  }
+
   const renderCartSummary = () => {
     if (cartItems.length === 0) return null
     return (
       <div className="cart-summary">
         <div className="cart-items">
-          {cartItems.map(item => {
-            const baseGrams = getBaseWeightGrams(item.product)
-            const displayGrams = item.gramsDraft !== undefined
-              ? item.gramsDraft
-              : String(item.grams ?? baseGrams ?? '')
-            return (
+          {cartItems.map(item => (
             <div key={item.product.id} className="cart-item">
               <span className="cart-item-name">{item.product.name}</span>
-              {baseGrams != null && (
-                <div className="cart-item-grams">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    className="cart-item-grams-input"
-                    value={displayGrams}
-                    onChange={(e) => handleGramsChange(item.product.id, e.target.value)}
-                    onBlur={() => handleGramsBlur(item.product.id)}
-                    aria-label={`Граммовка: ${item.product.name}`}
-                  />
-                  <span className="cart-item-grams-label">г</span>
-                </div>
-              )}
               <div className="cart-item-controls">
-                <button
-                  type="button"
-                  className="cart-btn-minus"
-                  onClick={() => handleRemoveProduct(item.product.id)}
-                >
-                  −
-                </button>
-                <span className="cart-item-quantity">{item.quantity}</span>
-                <button
-                  type="button"
-                  className="cart-btn-plus"
-                  onClick={() => handleAddProduct(item.product)}
-                >
-                  +
-                </button>
-                <span className="cart-item-price">
-                  {getCartLineTotal(item).toFixed(2)} BYN
-                </span>
+                {renderItemControls(item.product, { showPrice: true })}
               </div>
             </div>
-          )})}
+          ))}
         </div>
         <div className="cart-total">
           Итого: <strong>{cartTotal.toFixed(2)} BYN</strong>
@@ -440,15 +500,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
                       </div>
                     </div>
                     <div className="product-actions">
-                      {cart[product.id] ? (
-                        <div className="product-quantity-controls">
-                          <button type="button" className="product-btn-minus" onClick={() => handleRemoveProduct(product.id)}>−</button>
-                          <span className="product-quantity">{cart[product.id].quantity}</span>
-                          <button type="button" className="product-btn-plus" onClick={() => handleAddProduct(product)}>+</button>
-                        </div>
-                      ) : (
-                        <button type="button" className="product-btn-add" onClick={() => handleAddProduct(product)}>Добавить</button>
-                      )}
+                      {renderItemControls(product)}
                     </div>
                   </div>
                 )
@@ -587,33 +639,7 @@ const ProductSelector = ({ onProductsChange, initialTotal = 0 }) => {
               </div>
             </div>
             <div className="product-actions">
-              {cart[product.id] ? (
-                <div className="product-quantity-controls">
-                  <button
-                    type="button"
-                    className="product-btn-minus"
-                    onClick={() => handleRemoveProduct(product.id)}
-                  >
-                    −
-                  </button>
-                  <span className="product-quantity">{cart[product.id].quantity}</span>
-                  <button
-                    type="button"
-                    className="product-btn-plus"
-                    onClick={() => handleAddProduct(product)}
-                  >
-                    +
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="product-btn-add"
-                  onClick={() => handleAddProduct(product)}
-                >
-                  Добавить
-                </button>
-              )}
+              {renderItemControls(product)}
             </div>
           </div>
           )

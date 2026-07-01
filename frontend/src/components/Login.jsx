@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNotification } from './NotificationProvider'
 import { getRememberMePreference, setRememberMePreference } from '../utils/authStorage'
 import Footer from './Footer'
-import { TEA_ICON_SRC_WHITE } from '../config/branding'
 import './Login.css'
 
 const Login = () => {
@@ -35,7 +34,12 @@ const Login = () => {
         <div className="login-panel">
           <div className="login-brand">
             <div className="login-brand-mark" aria-hidden="true">
-              <img src={TEA_ICON_SRC_WHITE} alt="" className="login-brand-icon" />
+              <svg className="login-brand-cup" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 19h16v2H4zM20 8V5h-2v3zm0-5c.6 0 1 .2 1.4.6s.6.9.6 1.4v3c0 .6-.2 1-.6 1.4s-.8.6-1.4.6h-2v3c0 1.1-.4 2-1.2 2.8S15.1 17 14 17H8c-1.1 0-2-.4-2.8-1.2S4 14.1 4 13V3h5v2.4L7.2 6.8c-.1.1-.2.3-.2.4v4.3c0 .3.2.5.5.5h4c.3 0 .5-.2.5-.5V7.2c0-.2-.1-.3-.2-.4L10 5.4V3z"
+                  fill="currentColor"
+                />
+              </svg>
             </div>
             <span className="login-brand-text">Tea</span>
           </div>
@@ -97,7 +101,7 @@ const Login = () => {
                   }}
                   disabled={loading}
                 />
-                <span>Remember Me</span>
+                <span>Запомнить меня</span>
               </label>
 
               <button type="submit" className="login-submit-btn" disabled={loading}>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { usePointContext } from '../contexts/PointContext'
 import { getUserBadgeLabel, getUserTitle } from '../utils/userDisplay'
@@ -11,13 +12,18 @@ const Header = ({ onAddClient, currentPage, onNavigate }) => {
   const isAdmin = user?.role === 'admin'
   const [menuOpen, setMenuOpen] = useState(false)
   const [pointMenuOpen, setPointMenuOpen] = useState(false)
+  const [mobilePointPickerOpen, setMobilePointPickerOpen] = useState(false)
   const pointMenuRef = useRef(null)
   const badgeLabel = getUserBadgeLabel(user)
   const buttonTitle = getUserTitle(user, activePointName)
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
+    document.body.classList.toggle('mobile-menu-open', menuOpen)
+    return () => {
+      document.body.style.overflow = ''
+      document.body.classList.remove('mobile-menu-open')
+    }
   }, [menuOpen])
 
   useEffect(() => {
@@ -34,6 +40,7 @@ const Header = ({ onAddClient, currentPage, onNavigate }) => {
   const closeMenu = () => {
     setMenuOpen(false)
     setPointMenuOpen(false)
+    setMobilePointPickerOpen(false)
   }
 
   const handleNav = (page) => {
@@ -49,6 +56,7 @@ const Header = ({ onAddClient, currentPage, onNavigate }) => {
   const handlePointSelect = (pointId) => {
     setActivePointId(pointId)
     setPointMenuOpen(false)
+    setMobilePointPickerOpen(false)
   }
 
   const handleBadgeClick = () => {
@@ -154,7 +162,7 @@ const Header = ({ onAddClient, currentPage, onNavigate }) => {
         )}
         <button
           type="button"
-          className="mobile-menu-toggle"
+          className={`mobile-menu-toggle${menuOpen ? ' is-open' : ''}`}
           onClick={() => setMenuOpen((v) => !v)}
           aria-label={menuOpen ? 'Закрыть меню' : 'Открыть меню'}
           aria-expanded={menuOpen}
@@ -167,85 +175,114 @@ const Header = ({ onAddClient, currentPage, onNavigate }) => {
         </button>
       </div>
 
-      <div
-        className="mobile-menu-backdrop"
-        aria-hidden="true"
-        onClick={closeMenu}
-      />
-      <nav className="mobile-nav" aria-label="Основное меню">
-        <div className="mobile-nav-inner">
-          <button
-            type="button"
-            onClick={() => handleNav('new-client')}
-            className={`mobile-nav-link ${currentPage === 'new-client' ? 'active' : ''}`}
-          >
-            Новый заказ
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNav('clients')}
-            className={`mobile-nav-link ${currentPage === 'clients' ? 'active' : ''}`}
-          >
-            Клиенты
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNav('purchase-history')}
-            className={`mobile-nav-link ${currentPage === 'purchase-history' ? 'active' : ''}`}
-          >
-            История
-          </button>
-          <button
-            type="button"
-            onClick={() => handleNav('stats')}
-            className={`mobile-nav-link ${currentPage === 'stats' ? 'active' : ''}`}
-          >
-            Графики
-          </button>
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => handleNav('categories')}
-              className={`mobile-nav-link ${currentPage === 'categories' ? 'active' : ''}`}
-            >
-              Категории и товары
-            </button>
-          )}
-          {canSelectPoint && points.length > 0 && (
-            <div className="mobile-nav-point-select">
-              <span className="mobile-nav-point-select-label">Точка для заказов</span>
-              {points.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className={`mobile-nav-link mobile-nav-point-option${activePointId === p.id ? ' active' : ''}`}
-                  onClick={() => handlePointSelect(p.id)}
-                >
-                  {p.name}
-                  {activePointId === p.id ? ' ✓' : ''}
-                </button>
-              ))}
+      {typeof document !== 'undefined' && createPortal(
+        <>
+          <div
+            className="mobile-menu-backdrop"
+            aria-hidden="true"
+            onClick={closeMenu}
+          />
+          <nav className="mobile-nav" aria-label="Основное меню">
+            <div className="mobile-nav-header">
+              <div className="mobile-nav-brand">
+                <img src={TEA_ICON_SRC} alt="" className="mobile-nav-brand-icon" />
+                <span>Tea CRM</span>
+              </div>
+              <button
+                type="button"
+                className="mobile-nav-close"
+                onClick={closeMenu}
+                aria-label="Закрыть меню"
+              >
+                ×
+              </button>
             </div>
-          )}
-          <div className="mobile-nav-bottom">
-            {badgeLabel && (
-              <div className="mobile-nav-point" role="status">
-                <span className="mobile-nav-point-badge">{badgeLabel}</span>
+            <div className="mobile-nav-inner">
+              <button
+                type="button"
+                onClick={() => handleNav('new-client')}
+                className={`mobile-nav-link ${currentPage === 'new-client' ? 'active' : ''}`}
+              >
+                Новый заказ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNav('clients')}
+                className={`mobile-nav-link ${currentPage === 'clients' ? 'active' : ''}`}
+              >
+                Клиенты
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNav('purchase-history')}
+                className={`mobile-nav-link ${currentPage === 'purchase-history' ? 'active' : ''}`}
+              >
+                История
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNav('stats')}
+                className={`mobile-nav-link ${currentPage === 'stats' ? 'active' : ''}`}
+              >
+                Графики
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleNav('categories')}
+                  className={`mobile-nav-link ${currentPage === 'categories' ? 'active' : ''}`}
+                >
+                  Категории и товары
+                </button>
+              )}
+              <div className="mobile-nav-bottom">
+                <button
+                  type="button"
+                  className="mobile-nav-link mobile-nav-logout"
+                  onClick={handleLogout}
+                >
+                  Выйти
+                </button>
                 {activePointName && (
-                  <span className="mobile-nav-point-label">{activePointName}</span>
+                  canSelectPoint && points.length > 0 ? (
+                    <div className="mobile-nav-point-picker">
+                      <button
+                        type="button"
+                        className={`mobile-nav-point-info mobile-nav-point-info--selectable${mobilePointPickerOpen ? ' is-open' : ''}`}
+                        onClick={() => setMobilePointPickerOpen((v) => !v)}
+                        aria-expanded={mobilePointPickerOpen}
+                      >
+                        <span>Точка: {activePointName}</span>
+                        <span className="mobile-nav-point-chevron" aria-hidden="true" />
+                      </button>
+                      {mobilePointPickerOpen && (
+                        <div className="mobile-nav-point-options">
+                          {points.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className={`mobile-nav-link mobile-nav-point-option${activePointId === p.id ? ' active' : ''}`}
+                              onClick={() => handlePointSelect(p.id)}
+                            >
+                              {p.name}
+                              {activePointId === p.id && (
+                                <span className="header-point-check" aria-hidden="true">✓</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mobile-nav-point-info">Точка: {activePointName}</p>
+                  )
                 )}
               </div>
-            )}
-            <button
-              type="button"
-              className="mobile-nav-link mobile-nav-logout"
-              onClick={handleLogout}
-            >
-              Выйти
-            </button>
-          </div>
-        </div>
-      </nav>
+            </div>
+          </nav>
+        </>,
+        document.body
+      )}
     </header>
   )
 }

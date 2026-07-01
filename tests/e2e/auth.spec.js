@@ -28,6 +28,55 @@ test.describe('Авторизация', () => {
     await logout(page)
     await expect(page.getByPlaceholder('Логин')).toBeVisible()
   })
+
+  test('«Запомнить меня» включено — токены в localStorage', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('checkbox', { name: 'Запомнить меня' }).check()
+    await page.getByPlaceholder('Логин').fill('admin')
+    await page.getByPlaceholder('Пароль').fill('1234')
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('heading', { name: 'Tea CRM' }).waitFor({ state: 'visible' })
+
+    const storage = await page.evaluate(() => ({
+      rememberMe: localStorage.getItem('rememberMe'),
+      localAccess: localStorage.getItem('accessToken'),
+      sessionAccess: sessionStorage.getItem('accessToken'),
+    }))
+
+    expect(storage.rememberMe).toBe('true')
+    expect(storage.localAccess).toBeTruthy()
+    expect(storage.sessionAccess).toBeNull()
+  })
+
+  test('«Запомнить меня» выключено — токены в sessionStorage', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('checkbox', { name: 'Запомнить меня' }).uncheck()
+    await page.getByPlaceholder('Логин').fill('admin')
+    await page.getByPlaceholder('Пароль').fill('1234')
+    await page.getByRole('button', { name: 'Войти' }).click()
+    await page.getByRole('heading', { name: 'Tea CRM' }).waitFor({ state: 'visible' })
+
+    const storage = await page.evaluate(() => ({
+      rememberMe: localStorage.getItem('rememberMe'),
+      localAccess: localStorage.getItem('accessToken'),
+      sessionAccess: sessionStorage.getItem('accessToken'),
+    }))
+
+    expect(storage.rememberMe).toBe('false')
+    expect(storage.localAccess).toBeNull()
+    expect(storage.sessionAccess).toBeTruthy()
+  })
+
+  test('состояние «Запомнить меня» сохраняется после перезагрузки', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('checkbox', { name: 'Запомнить меня' }).uncheck()
+    await page.reload()
+    await expect(page.getByRole('checkbox', { name: 'Запомнить меня' })).not.toBeChecked()
+
+    await page.getByRole('checkbox', { name: 'Запомнить меня' }).check()
+    await page.reload()
+    await expect(page.getByRole('checkbox', { name: 'Запомнить меня' })).toBeChecked()
+  })
 })
 
 test.describe('API login', () => {

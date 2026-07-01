@@ -32,6 +32,7 @@
 }
 
 .login-brand-mark {
+    position: relative;
     align-items: center;
     background: linear-gradient(145deg, #6fa85e 0%, #4d7a42 100%);
     border-radius: 16px;
@@ -40,13 +41,41 @@
     height: 56px;
     justify-content: center;
     width: 56px;
+    animation: login-brand-glow 3.6s ease-in-out infinite;
 }
 
-.login-brand-icon {
+@keyframes login-brand-glow {
+    0%, 100% {
+        box-shadow: 0 6px 18px rgba(77, 122, 66, 0.22);
+    }
+    50% {
+        box-shadow: 0 8px 24px rgba(77, 122, 66, 0.34);
+    }
+}
+
+.login-brand-cup {
     display: block;
-    height: 30px;
-    object-fit: contain;
     width: 30px;
+    height: 30px;
+    color: #fff;
+    animation: login-cup-float 3.6s ease-in-out infinite;
+    transform-origin: center bottom;
+}
+
+@keyframes login-cup-float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-1.5px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .login-brand-mark,
+    .login-brand-cup {
+        animation: none;
+    }
 }
 
 .login-brand-text {
@@ -212,9 +241,9 @@
         width: 50px;
     }
 
-    .login-brand-icon {
-        height: 26px;
+    .login-brand-cup {
         width: 26px;
+        height: 26px;
     }
 
     .login-brand-text {
@@ -239,9 +268,9 @@
         border-radius: 14px;
     }
 
-    .login-brand-icon {
-        height: 24px;
+    .login-brand-cup {
         width: 24px;
+        height: 24px;
     }
 
     .login-brand-text {
@@ -279,9 +308,9 @@
         width: 44px;
     }
 
-    .login-brand-icon {
-        height: 22px;
+    .login-brand-cup {
         width: 22px;
+        height: 22px;
     }
 
     .login-brand-text {
@@ -310,9 +339,9 @@
         border-radius: 12px;
     }
 
-    .login-brand-icon {
-        height: 20px;
+    .login-brand-cup {
         width: 20px;
+        height: 20px;
     }
 
     .login-brand-text {
